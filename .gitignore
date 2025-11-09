@@ -1,0 +1,18 @@
+# Node
+node_modules/
+.env
+dist/
+
+# Python
+__pycache__/
+.venv/
+
+# DB & Docker
+chroma_storage/
+postgres_data/
+neo4j_data/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
