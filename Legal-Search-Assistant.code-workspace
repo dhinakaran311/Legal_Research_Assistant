@@ -1,0 +1,36 @@
+{
+  "folders": [
+    { "path": "backend" },
+    { "path": "ai_engine" },
+    { "path": "frontend" },
+    { "path": "docker" },
+    { "path": "docs" }
+  ],
+  "settings": {
+    // --- General ---
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2,
+    "files.autoSave": "onFocusChange",
+
+    // --- Python (AI Engine) ---
+    "python.defaultInterpreterPath": "C:\\Users\\Dhinakaran M S\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.typeCheckingMode": "basic",
+
+    // --- JavaScript / Node (Backend & Frontend) ---
+    "eslint.validate": ["javascript", "typescript", "react"],
+    "prettier.requireConfig": false,
+
+    // --- File Exclusions ---
+    "files.exclude": {
+      "**/__pycache__": true,
+      "**/node_modules": true,
+      "**/.env": true,
+      "**/.venv": true
+    },
+
+    // --- Terminal ---
+    "terminal.integrated.defaultProfile.windows": "PowerShell",
+    "terminal.integrated.cwd": "${workspaceFolder}"
+  }
+}
