@@ -1,24 +1,78 @@
-# docker/docker-compose.yml
 version: "3.9"
+
 services:
   postgres:
     image: postgres:15
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
-      - ./postgres_data:/var/lib/postgresql/data
+      - ${POSTGRES_VOLUME}:/var/lib/postgresql/data
 
   neo4j:
     image: neo4j:5
-    restart: always
     environment:
-      - NEO4J_AUTH=neo4j/password
+      NEO4J_AUTH: ${NEO4J_AUTH}
     ports:
       - "7474:7474"
       - "7687:7687"
     volumes:
-      - ./neo4j_data:/data
+      - ${NEO4J_VOLUME}:/data
+
+  chroma:
+    image: ghcr.io/chroma-core/chroma:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ${CHROMA_VOLUME}:/data
+    environment:
+      - CHROMA_DB_DIR=/data
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+      - chroma
+      - neo4j
+    environment:
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - AI_ENGINE_URL=http://ai_engine:5000
+      - NODE_ENV=development
+    ports:
+      - "4000:4000"
+    volumes:
+      - ../backend:/app
+    command: sh -c "npm run dev"
+
+  ai_engine:
+    build:
+      context: ../ai_engine
+      dockerfile: Dockerfile
+    depends_on:
+      - postgres
+      - chroma
+      - neo4j
+    environment:
+      - POSTGRES_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - NEO4J_URI=bolt://neo4j:7687
+    ports:
+      - "5000:5000"
+    volumes:
+      - ../ai_engine:/app
+    command: sh -c "uvicorn src.main:app --host 0.0.0.0 --port 5000 --reload"
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../frontend:/app
+    command: sh -c "npm run dev"
