@@ -5,13 +5,35 @@ dist/
 
 # Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 .venv/
+.ven/
+venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.coverage
+
+# AI Engine Data
+ai_engine/data/chromadb/
+ai_engine/data/chromadb_test/
+*.sqlite3
 
 # DB & Docker
 chroma_storage/
 postgres_data/
 neo4j_data/
 *.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # OS
 .DS_Store

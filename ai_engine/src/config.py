@@ -22,7 +22,12 @@ class Settings(BaseSettings):
     MODEL_NAME: str = os.getenv("MODEL_NAME", "sentence-transformers/all-MiniLM-L6-v2")
     
     # Database Configuration
-    CHROMA_DB_PATH: str = os.getenv("CHROMA_DB_PATH", "./data/chromadb")
+    # Use absolute path for ChromaDB to avoid issues when running from different directories
+    CHROMA_DB_PATH: str = os.getenv(
+        "CHROMA_DB_PATH", 
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "chromadb")
+    )
+    CHROMA_COLLECTION_NAME: str = os.getenv("CHROMA_COLLECTION_NAME", "legal_documents")
     NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     NEO4J_USER: str = os.getenv("NEO4J_USER", "neo4j")
     NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "password")
