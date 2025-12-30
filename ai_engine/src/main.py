@@ -54,6 +54,10 @@ app.add_middleware(
 # Include routers
 app.include_router(query.router)
 
+# Import adaptive query router
+from routes import adaptive_query
+app.include_router(adaptive_query.router)
+
 
 @app.get("/")
 async def root():

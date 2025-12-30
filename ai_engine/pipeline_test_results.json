@@ -1,0 +1,68 @@
+[
+  {
+    "test_number": 1,
+    "query": "What is the punishment for murder?",
+    "expected_intent": "factual",
+    "detected_intent": "factual",
+    "intent_match": true,
+    "intent_confidence": 0.24,
+    "num_sources": 4,
+    "confidence": 0.5146,
+    "processing_time_ms": 14559.06
+  },
+  {
+    "test_number": 2,
+    "query": "How do I file an FIR?",
+    "expected_intent": "procedural",
+    "detected_intent": "procedural",
+    "intent_match": true,
+    "intent_confidence": 0.4073,
+    "num_sources": 5,
+    "confidence": 0.5026,
+    "processing_time_ms": 94.36
+  },
+  {
+    "test_number": 3,
+    "query": "What is the difference between murder and culpable homicide?",
+    "expected_intent": "comparative",
+    "detected_intent": "comparative",
+    "intent_match": true,
+    "intent_confidence": 0.4091,
+    "num_sources": 5,
+    "confidence": 0.5627,
+    "processing_time_ms": 76.76
+  },
+  {
+    "test_number": 4,
+    "query": "What is cheating under IPC?",
+    "expected_intent": "definitional",
+    "detected_intent": "definitional",
+    "intent_match": true,
+    "intent_confidence": 0.1667,
+    "num_sources": 3,
+    "confidence": 0.4717,
+    "processing_time_ms": 72.32
+  },
+  {
+    "test_number": 5,
+    "query": "Tell me about contract law in India",
+    "expected_intent": "exploratory",
+    "detected_intent": "exploratory",
+    "intent_match": true,
+    "intent_confidence": 0.4125,
+    "num_sources": 5,
+    "confidence": 0.6371,
+    "processing_time_ms": 117.98
+  },
+  {
+    "test_number": 6,
+    "query": "When should I file a complaint?",
+    "expected_intent": "temporal",
+    "detected_intent": "procedural",
+    "intent_match": false,
+    "intent_confidence": 0.295,
+    "num_sources": 5,
+    "confidence": 0.4378,
+    "processing_time_ms": 110.98
+  }
+]
