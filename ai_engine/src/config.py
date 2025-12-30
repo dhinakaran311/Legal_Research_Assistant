@@ -28,9 +28,11 @@ class Settings(BaseSettings):
         os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "chromadb")
     )
     CHROMA_COLLECTION_NAME: str = os.getenv("CHROMA_COLLECTION_NAME", "legal_documents")
-    NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-    NEO4J_USER: str = os.getenv("NEO4J_USER", "neo4j")
-    NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "password")
+    
+    # Neo4j Configuration
+    NEO4J_URI: str = os.getenv("NEO4J_URI", "")
+    NEO4J_USERNAME: str = os.getenv("NEO4J_USERNAME", "neo4j")
+    NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "")
     
     # Application Settings
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
@@ -39,6 +41,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = 'ignore'  # Allow extra env variables (for backward compatibility)
 
 
 # Create global settings instance

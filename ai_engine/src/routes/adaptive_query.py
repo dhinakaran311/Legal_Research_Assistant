@@ -9,6 +9,7 @@ import time
 import logging
 
 from pipelines.adaptive_rag import AdaptiveRAGPipeline
+from graph.neo4j_client import get_neo4j_client
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -17,15 +18,29 @@ router = APIRouter(prefix="/api", tags=["adaptive-query"])
 
 # Initialize pipeline (singleton)
 _pipeline_instance: Optional[AdaptiveRAGPipeline] = None
+_neo4j_client = None  # Global Neo4j client
+
+# Initialize Neo4j client once
+def get_neo4j():
+    global _neo4j_client
+    if _neo4j_client is None:
+        _neo4j_client = get_neo4j_client()
+    return _neo4j_client
 
 
 def get_pipeline(use_llm: bool = False) -> AdaptiveRAGPipeline:
     """Get or create pipeline instance with specified LLM mode"""
     global _pipeline_instance
     
+    # Get Neo4j client
+    neo4j = get_neo4j()
+    
     # If switching LLM mode, recreate pipeline
     if _pipeline_instance is None or _pipeline_instance.use_llm != use_llm:
-        _pipeline_instance = AdaptiveRAGPipeline(use_llm=use_llm)
+        _pipeline_instance = AdaptiveRAGPipeline(
+            use_llm=use_llm,
+            neo4j_client=neo4j  # Pass Neo4j client
+        )
     
     return _pipeline_instance
 
@@ -44,6 +59,7 @@ class AdaptiveQueryResponse(BaseModel):
     intent_confidence: float
     answer: str
     sources: List[Dict[str, Any]]
+    graph_references: List[Dict[str, Any]]  # NEW: Graph facts from Neo4j
     documents_used: int
     retrieval_strategy: Dict[str, Any]
     confidence: float
@@ -93,6 +109,7 @@ async def adaptive_query(request: AdaptiveQueryRequest) -> AdaptiveQueryResponse
             intent_confidence=result.intent_confidence,
             answer=result.answer,
             sources=result.sources,
+            graph_references=result.graph_references,  # NEW
             documents_used=result.num_sources_retrieved,
             retrieval_strategy=result.retrieval_strategy,
             confidence=result.confidence,

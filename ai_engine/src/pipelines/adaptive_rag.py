@@ -29,6 +29,14 @@ except ImportError:
     LLM_AVAILABLE = False
     logger.warning("LLM module not available, using rule-based generation only")
 
+# Optional Graph imports (lazy loaded)
+try:
+    from graph.graph_queries import fetch_legal_graph_facts, build_graph_context
+    GRAPH_AVAILABLE = True
+except ImportError:
+    GRAPH_AVAILABLE = False
+    logger.warning("Graph module not available, proceeding without graph enrichment")
+
 logger = logging.getLogger(__name__)
 
 
@@ -75,6 +83,7 @@ class RetrievedContext:
 class PipelineResult:
     """Final result from the adaptive RAG pipeline"""
     question: str
+    graph_references: List[Dict[str, Any]]  # NEW: Graph facts from Neo4j
     intent: QueryIntent
     intent_confidence: float
     answer: str
@@ -101,6 +110,7 @@ class AdaptiveRAGPipeline:
         self,
         chroma_client: Optional[ChromaClient] = None,
         embedder: Optional[Embedder] = None,
+        neo4j_client = None,
         use_llm: bool = False,
         llm_model: str = "llama3.2:3b"
     ):
@@ -110,17 +120,23 @@ class AdaptiveRAGPipeline:
         Args:
             chroma_client: Optional ChromaDB client (will create if not provided)
             embedder: Optional embedder instance (will create if not provided)
+            neo4j_client: Optional Neo4j client for graph enrichment (will skip if not provided)
             use_llm: Whether to use LLM for answer generation (default: False)
             llm_model: Name of the Ollama model to use (default: llama3.2:3b)
         """
         self.chroma_client = chroma_client
         self.embedder = embedder
+        self.neo4j_client = neo4j_client
+        self.use_graph = neo4j_client is not None and GRAPH_AVAILABLE
         self.use_llm = use_llm and LLM_AVAILABLE
         self.llm_model = llm_model
         self.llm_generator = None  # Lazy loaded
         
         if use_llm and not LLM_AVAILABLE:
             logger.warning("LLM requested but not available, falling back to rule-based generation")
+        
+        if neo4j_client and not GRAPH_AVAILABLE:
+            logger.warning("Graph enrichment requested but graph module not available")
         
         # Intent detection patterns (ordered by priority - specific to generic)
         # Patterns are checked in order, with multi-word patterns prioritized
@@ -191,7 +207,10 @@ class AdaptiveRAGPipeline:
             QueryIntent.UNKNOWN: (3, 5)            # Default moderate retrieval
         }
         
-        logger.info(f"AdaptiveRAGPipeline initialized (LLM: {'enabled' if self.use_llm else 'disabled'})")
+        logger.info(
+            f"AdaptiveRAGPipeline initialized (LLM: {'enabled' if self.use_llm else 'disabled'}, "
+            f"Graph: {'enabled' if self.use_graph else 'disabled'})"
+        )
     
     def _ensure_clients(self) -> None:
         """Ensure ChromaDB and Embedder clients are initialized"""
@@ -706,6 +725,15 @@ class AdaptiveRAGPipeline:
         # STAGE 3: Retrieve Context
         context = self.retrieve_context(query, retrieval_strategy)
         
+        # STAGE 3.5: Graph Enrichment (if Neo4j available)
+        graph_facts = []
+        if self.use_graph:
+            try:
+                graph_facts = fetch_legal_graph_facts(query, self.neo4j_client)
+                logger.info(f"Graph enrichment: {len(graph_facts)} facts retrieved")
+            except Exception as e:
+                logger.warning(f"Graph enrichment failed: {str(e)}, proceeding without graph")
+        
         # STAGE 4: Generate Answer
         answer, confidence, sources = self.generate_answer(
             query, context, intent_analysis
@@ -717,6 +745,7 @@ class AdaptiveRAGPipeline:
         # Build result
         result = PipelineResult(
             question=query,
+            graph_references=graph_facts,  # Include graph facts
             intent=intent_analysis.intent,
             intent_confidence=round(intent_analysis.confidence, 4),
             answer=answer,
@@ -734,13 +763,15 @@ class AdaptiveRAGPipeline:
                 'intent': intent_analysis.intent.value,
                 'intent_confidence': intent_analysis.confidence,
                 'keywords_matched': intent_analysis.keywords_matched,
-                'documents_before_filtering': len(context.documents)
+                'documents_before_filtering': len(context.documents),
+                'graph_facts_found': len(graph_facts)  # NEW
             }
         )
         
         logger.info(
             f"Pipeline completed: intent={result.intent}, "
             f"sources={len(result.sources)}, "
+            f"graph_facts={len(graph_facts)}, "
             f"time={result.processing_time_ms:.2f}ms"
         )
         
