@@ -9,6 +9,7 @@ import logging
 
 from config import settings
 from routes import query
+from middleware import verify_internal_api_key
 
 # Configure logging
 logging.basicConfig(
@@ -50,6 +51,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add API key middleware (protects /api/* endpoints)
+app.middleware("http")(verify_internal_api_key)
+
 
 # Include routers
 app.include_router(query.router)

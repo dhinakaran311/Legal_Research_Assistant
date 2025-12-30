@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     NEO4J_USERNAME: str = os.getenv("NEO4J_USERNAME", "neo4j")
     NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "")
     
+    # Internal API Security
+    INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "")
+    
     # Application Settings
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

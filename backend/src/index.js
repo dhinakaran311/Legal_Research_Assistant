@@ -14,12 +14,13 @@ dotenv.config();
 // Initialize Express app
 const app = express();
 
-// Apply CORS and JSON parsing middleware
+// Apply CORS
 app.use(cors());
-app.use(express.json());
 
-// REST API Routes
+// REST API Routes (before GraphQL body parser)
+app.use("/api/auth", express.json());
 app.use("/api/auth", authRoutes);
+app.use("/api/feedback", express.json());
 app.use("/api/feedback", feedbackRoutes);
 
 // Apollo Server setup
@@ -30,26 +31,22 @@ const server = new ApolloServer({
     // Get the user token from the headers
     const token = req.headers.authorization || '';
     return { token };
-  },
-  // Disable the built-in body parser
-  bodyParserConfig: false
+  }
 });
 
 // Apply Apollo Server middleware
 async function startServer() {
   await server.start();
-  
-  // Apply Apollo GraphQL middleware
-  server.applyMiddleware({ 
+
+  // Apply Apollo GraphQL middleware - Apollo handles its own body parsing
+  server.applyMiddleware({
     app,
-    // Disable body parsing here since we're handling it with express.json()
-    bodyParser: false,
     path: "/graphql",
     cors: false // We're already using CORS middleware
   });
 
   const PORT = process.env.PORT || 4000;
-  
+
   app.listen(PORT, () => {
     console.log("====================================");
     console.log(`✅ REST API running at: http://localhost:${PORT}`);
