@@ -28,14 +28,26 @@ Edit the `.env` file with your settings:
 
 ### 3. Run the Server
 
-```bash
-cd src
-python main.py
+**Option 1: Using PowerShell script (Recommended for Windows):**
+```powershell
+.\start_server.ps1
 ```
 
-Or using uvicorn directly:
+**Option 2: Using batch file:**
+```cmd
+start_server.bat
+```
 
+**Option 3: Manual start (from ai_engine directory):**
+```powershell
+# Set PYTHONPATH and run
+$env:PYTHONPATH = "src"
+uvicorn src.main:app --host 0.0.0.0 --port 5000 --reload
+```
+
+**Option 4: Run from src directory:**
 ```bash
+cd src
 uvicorn main:app --host 0.0.0.0 --port 5000 --reload
 ```
 
