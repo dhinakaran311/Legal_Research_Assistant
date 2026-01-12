@@ -191,11 +191,42 @@ print(f"Found {len(results['ids'][0])} results")
 - **Text cleaner:** `data_ingestion/preprocess/text_cleaner.py`
 - **Test script:** `data_ingestion/test_crpc_scraper.py`
 
+### Step 5.5: Load into Neo4j (Optional)
+
+To create graph relationships between sections:
+
+```bash
+# Load all acts into Neo4j
+python loaders/load_multi_act_to_neo4j.py
+
+# Or load specific acts only
+python loaders/load_multi_act_to_neo4j.py --acts crpc ipc
+
+# Skip creating RELATED_TO relationships (faster)
+python loaders/load_multi_act_to_neo4j.py --no-references
+```
+
+**What it does:**
+- Creates Act nodes for each act
+- Creates Section nodes for each section
+- Creates `HAS_SECTION` relationships (Act → Section)
+- Extracts section references from content and creates `RELATED_TO` relationships
+- Creates indexes for better query performance
+
+**Prerequisites:**
+- Neo4j must be running (Docker or Neo4j Desktop)
+- Neo4j credentials configured in `ai_engine/.env`:
+  ```
+  NEO4J_URI=bolt://localhost:7687
+  NEO4J_USERNAME=neo4j
+  NEO4J_PASSWORD=your_password
+  ```
+
 ## Next Steps
 
 After successfully scraping and loading CrPC sections:
 
 1. **Expand to more sections** - Add more CrPC sections
 2. **Add IPC sections** - Follow same pattern for IPC
-3. **Neo4j integration** - Create graph relationships
+3. **Neo4j integration** - ✅ Now available! Use `load_multi_act_to_neo4j.py`
 4. **Incremental updates** - Add functionality to update changed sections

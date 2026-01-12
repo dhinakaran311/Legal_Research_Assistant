@@ -278,6 +278,100 @@ exit()
 
 ---
 
+### **Step 5.5: Load Data into Neo4j (Optional but Recommended)**
+
+To enable graph relationships and cross-references between sections:
+
+```powershell
+# Navigate to data_ingestion
+cd data_ingestion
+
+# Load all acts into Neo4j
+python loaders/load_multi_act_to_neo4j.py
+
+# Or load specific acts only
+python loaders/load_multi_act_to_neo4j.py --acts crpc ipc
+
+# Skip creating RELATED_TO relationships (faster, but less connections)
+python loaders/load_multi_act_to_neo4j.py --no-references
+```
+
+**What it does:**
+- Creates Act nodes for each act (IPC, CrPC, etc.)
+- Creates Section nodes for each section
+- Creates `HAS_SECTION` relationships (Act → Section)
+- Extracts section references from content and creates `RELATED_TO` relationships
+- Creates indexes for better query performance
+
+**Expected Output:**
+```
+✅ Neo4j connected
+✅ Indexes created/verified
+✅ Created X Section nodes
+✅ Created X HAS_SECTION relationships
+✅ Created X RELATED_TO relationships
+📊 Final Status:
+   Acts in graph: 7
+   Sections in graph: 64
+   HAS_SECTION relationships: 64
+   RELATED_TO relationships: X
+```
+
+**Verify Neo4j Data:**
+
+```powershell
+# Navigate to ai_engine
+cd ai_engine
+
+# Activate virtual environment
+.\.ven\Scripts\Activate
+
+# Set PYTHONPATH
+$env:PYTHONPATH = "src"
+
+# Run Python to check Neo4j
+python
+```
+
+```python
+from graph.neo4j_client import get_neo4j_client
+from config import settings
+
+# Connect to Neo4j
+client = get_neo4j_client(
+    uri=settings.NEO4J_URI,
+    username=settings.NEO4J_USERNAME,
+    password=settings.NEO4J_PASSWORD
+)
+
+# Count nodes
+query = """
+MATCH (a:Act)
+WITH count(a) AS act_count
+MATCH (s:Section)
+RETURN act_count, count(s) AS section_count
+"""
+result = client.run_query(query)
+print(f"Acts: {result[0]['act_count']}, Sections: {result[0]['section_count']}")
+
+# Find related sections
+query = """
+MATCH (s:Section {number: "438"})-[:RELATED_TO]->(related:Section)
+RETURN related.number AS related_section, related.title AS title
+"""
+result = client.run_query(query)
+print(f"\nSections related to 438:")
+for r in result:
+    print(f"  - Section {r['related_section']}: {r['title']}")
+
+# Exit
+exit()
+```
+
+**Note:** Neo4j integration is optional. The system works without it, but graph relationships enhance search results with cross-references.
+
+---
+
 ### **Step 6: Test via GraphQL Playground**
 
 You can also test directly via GraphQL:
@@ -354,6 +448,8 @@ Use this checklist to verify everything is working:
   - [ ] ChromaDB query returns documents
   - [ ] Document IDs match pattern: `{act}_section_{number}`
   - [ ] Metadata includes act, section, category, subcategory
+  - [ ] Neo4j graph loaded (optional): Acts and Sections created
+  - [ ] Neo4j relationships created: HAS_SECTION and RELATED_TO
 
 ---
 
@@ -396,6 +492,15 @@ Use this checklist to verify everything is working:
 1. Verify `NEXT_PUBLIC_BACKEND_URL=http://localhost:4000` in `frontend/.env.local`
 2. Check if Backend is running (Terminal 2)
 3. Test GraphQL endpoint: http://localhost:4000/graphql
+
+### **Issue: Neo4j connection fails**
+
+**Solutions:**
+1. Verify Neo4j is running: `docker ps` (if using Docker) or check Neo4j Desktop
+2. Verify `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` in `ai_engine/.env`
+3. Test connection: `python loaders/load_multi_act_to_neo4j.py` should show "✅ Neo4j connected"
+4. Check Neo4j browser: http://localhost:7474 (default port)
+5. Verify credentials match Neo4j database settings
 
 ---
 
