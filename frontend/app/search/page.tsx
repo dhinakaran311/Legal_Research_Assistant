@@ -88,7 +88,7 @@ export default function SearchPage() {
     setHasSearched(true);
 
     // Add to search history
-    addToSearchHistory(query, useLlm);
+    addToSearchHistory(query, useLlm, user?.email);
 
     // Refetch with new query
     try {
@@ -133,7 +133,7 @@ export default function SearchPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search History */}
-        <SearchHistory onSelectQuery={handleHistorySelect} />
+        <SearchHistory onSelectQuery={handleHistorySelect} userId={user?.email} />
 
         {/* Search Form */}
         <div className="bg-white dark:bg-slate-800 rounded-lg shadow-soft p-6 mb-6 transform transition-all duration-300 hover:shadow-elevation-2 animate-fade-in">

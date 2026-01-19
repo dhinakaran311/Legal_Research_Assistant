@@ -22,6 +22,21 @@ The system supports **7 major Indian Acts** with **63+ popular sections**, inclu
 
 ---
 
+## Screenshots
+
+### Authentication Pages
+<div align="center">
+  <img src="images/login.png" alt="Login Page" width="45%">
+  <img src="images/signin.png" alt="Sign Up Page" width="45%">
+</div>
+
+### Main Interface
+<div align="center">
+  <img src="images/home_page.png" alt="Home Page - Search Interface" width="90%">
+</div>
+
+---
+
 ## Features
 
 ### Intelligent Search

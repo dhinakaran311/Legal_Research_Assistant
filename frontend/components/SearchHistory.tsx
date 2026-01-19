@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 interface SearchHistoryItem {
     query: string;
@@ -10,35 +10,43 @@ interface SearchHistoryItem {
 
 interface SearchHistoryProps {
     onSelectQuery: (query: string, useLlm: boolean) => void;
+    userId?: string; // User ID to make history user-specific
 }
 
-export default function SearchHistory({ onSelectQuery }: SearchHistoryProps) {
+export default function SearchHistory({ onSelectQuery, userId }: SearchHistoryProps) {
     const [history, setHistory] = useState<SearchHistoryItem[]>([]);
     const [isExpanded, setIsExpanded] = useState(false);
 
-    useEffect(() => {
-        loadHistory();
-    }, []);
+    // Create user-specific storage key
+    const getStorageKey = useCallback(() => {
+        return userId ? `searchHistory_${userId}` : 'searchHistory';
+    }, [userId]);
 
-    const loadHistory = () => {
+    const loadHistory = useCallback(() => {
         try {
-            const saved = localStorage.getItem('searchHistory');
+            const saved = localStorage.getItem(getStorageKey());
             if (saved) {
                 setHistory(JSON.parse(saved));
+            } else {
+                setHistory([]);
             }
         } catch (error) {
             console.error('Failed to load search history:', error);
         }
-    };
+    }, [getStorageKey]);
+
+    useEffect(() => {
+        loadHistory();
+    }, [loadHistory]); // Now properly includes all dependencies
 
     const clearHistory = () => {
-        localStorage.removeItem('searchHistory');
+        localStorage.removeItem(getStorageKey());
         setHistory([]);
     };
 
     const clearItem = (index: number) => {
         const newHistory = history.filter((_, i) => i !== index);
-        localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+        localStorage.setItem(getStorageKey(), JSON.stringify(newHistory));
         setHistory(newHistory);
     };
 
@@ -132,9 +140,12 @@ export default function SearchHistory({ onSelectQuery }: SearchHistoryProps) {
     );
 }
 
-export function addToSearchHistory(query: string, useLlm: boolean) {
+export function addToSearchHistory(query: string, useLlm: boolean, userId?: string) {
     try {
-        const saved = localStorage.getItem('searchHistory');
+        // Create user-specific storage key
+        const storageKey = userId ? `searchHistory_${userId}` : 'searchHistory';
+
+        const saved = localStorage.getItem(storageKey);
         const history: SearchHistoryItem[] = saved ? JSON.parse(saved) : [];
 
         // Don't add duplicate consecutive queries
@@ -149,7 +160,7 @@ export function addToSearchHistory(query: string, useLlm: boolean) {
         };
 
         const newHistory = [newItem, ...history.filter(item => item.query !== query)].slice(0, 10);
-        localStorage.setItem('searchHistory', JSON.stringify(newHistory));
+        localStorage.setItem(storageKey, JSON.stringify(newHistory));
     } catch (error) {
         console.error('Failed to save search history:', error);
     }
