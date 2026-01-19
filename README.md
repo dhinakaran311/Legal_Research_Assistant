@@ -1,4 +1,4 @@
-# ⚖️ Legal Research Assistant
+# Legal Research Assistant
 
 An AI-powered legal research platform for Indian law, enabling intelligent search through legal documents using natural language queries with hybrid RAG (Retrieval-Augmented Generation) and knowledge graph integration.
 
@@ -10,7 +10,7 @@ An AI-powered legal research platform for Indian law, enabling intelligent searc
 
 ---
 
-## 🎯 Overview
+## Overview
 
 Legal Research Assistant is a comprehensive legal search system that combines:
 - **Vector Search** (ChromaDB) for semantic document retrieval
@@ -22,27 +22,27 @@ The system supports **7 major Indian Acts** with **63+ popular sections**, inclu
 
 ---
 
-## ✨ Features
+## Features
 
-### 🔍 Intelligent Search
+### Intelligent Search
 - **Natural Language Queries**: Ask legal questions in plain English
 - **Intent Detection**: Automatically classifies query types (factual, procedural, comparative, etc.)
 - **Adaptive Retrieval**: Dynamically adjusts document retrieval based on query intent
 - **Hybrid Search**: Combines vector search (ChromaDB) + knowledge graph (Neo4j)
 
-### 📚 Multi-Act Support
+### Multi-Act Support
 - **7 Indian Acts**: IPC, CrPC, Evidence Act, Contract Act, CPC, Companies Act, Constitution
 - **63+ Sections**: Popular sections from each act
 - **Graph Relationships**: Cross-references between sections and acts
 - **Case Citations**: Landmark cases linked to sections
 
-### 🤖 AI-Powered Answers
+### AI-Powered Answers
 - **Rule-Based Generation**: Fast, predictable answers (default)
 - **LLM-Powered Generation**: Natural, synthesized answers using Ollama (optional)
 - **Source Citations**: Every answer includes source documents with metadata
 - **Graph References**: Related sections and cases from knowledge graph
 
-### 🏗️ Modern Architecture
+### Modern Architecture
 - **Microservices Design**: Separate services for Frontend, Backend, and AI Engine
 - **GraphQL API**: Flexible query interface
 - **REST API**: Standard HTTP endpoints
@@ -50,7 +50,7 @@ The system supports **7 major Indian Acts** with **63+ popular sections**, inclu
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -91,7 +91,7 @@ The system supports **7 major Indian Acts** with **63+ popular sections**, inclu
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Frontend
 - **Next.js 14** - React framework
@@ -121,7 +121,7 @@ The system supports **7 major Indian Acts** with **63+ popular sections**, inclu
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 Before you begin, ensure you have:
 
@@ -134,7 +134,7 @@ Before you begin, ensure you have:
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Clone the Repository
 
@@ -275,7 +275,7 @@ npm run dev
 
 ---
 
-## 📊 Execution Flow
+## Execution Flow
 
 ### Complete System Flow
 
@@ -393,7 +393,7 @@ npm run dev
 
 ---
 
-## 📖 Usage Examples
+## Usage Examples
 
 ### Search via Frontend
 
@@ -447,7 +447,7 @@ curl -X POST http://localhost:5000/api/adaptive-query \
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Legal_Research_Assistant/
@@ -492,7 +492,7 @@ Legal_Research_Assistant/
 
 ---
 
-## 🧪 Testing
+## Testing
 
 ### Verify Services
 
@@ -534,7 +534,7 @@ python verify_neo4j_data.py
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 ### Supported Acts
 
@@ -569,7 +569,7 @@ To enable LLM-powered answers:
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 - **[Data Ingestion Guide](data_ingestion/README.md)** - Scraping and loading data
 - **[End-to-End Testing](data_ingestion/END_TO_END_TESTING.md)** - Complete testing guide
@@ -581,9 +581,9 @@ To enable LLM-powered answers:
 
 ---
 
-## 🚧 Development Status
+## Development Status
 
-### ✅ Completed
+### Completed
 - [x] Backend API (GraphQL + REST)
 - [x] AI Engine with Adaptive RAG Pipeline
 - [x] Frontend application (Next.js)
@@ -593,13 +593,13 @@ To enable LLM-powered answers:
 - [x] User authentication
 - [x] LLM integration (Ollama)
 
-### 🚧 In Progress
+### In Progress
 - [ ] Additional acts (GST Act, Income Tax Act)
 - [ ] Court judgments scraping
 - [ ] Law Commission reports
 - [ ] Advanced graph relationships
 
-### 📋 Planned
+### Planned
 - [ ] Search history
 - [ ] Saved searches
 - [ ] Export results
@@ -608,7 +608,7 @@ To enable LLM-powered answers:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
@@ -620,13 +620,13 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **IndiaCode** - Source for legal acts and sections
 - **ChromaDB** - Vector database for embeddings
@@ -636,7 +636,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-## 📞 Support
+## Support
 
 For issues, questions, or contributions:
 - **GitHub Issues:** [Create an issue](https://github.com/dhinakaran311/Legal_Research_Assistant/issues)
@@ -644,7 +644,7 @@ For issues, questions, or contributions:
 
 ---
 
-## 🎯 Roadmap
+## Roadmap
 
 - [ ] Expand to 20+ Indian Acts
 - [ ] Add 500+ sections
@@ -656,4 +656,4 @@ For issues, questions, or contributions:
 
 ---
 
-**Built with ❤️ for the Indian legal community**
+**Built with love for the Indian legal community**
