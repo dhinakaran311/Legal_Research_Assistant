@@ -1,19 +1,30 @@
 'use client';
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, FormEvent, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 import { useQuery } from '@apollo/client';
 import { SEARCH_QUERY } from '@/lib/graphql/queries';
 import SearchResults from '@/components/SearchResults';
+import Header from '@/components/Header';
+import SearchHistory, { addToSearchHistory } from '@/components/SearchHistory';
+import { SearchResultsSkeleton } from '@/components/LoadingSpinner';
+import QuickActionsMenu from '@/components/QuickActionsMenu';
+import TopLoadingBar from '@/components/TopLoadingBar';
+import OnboardingTutorial from '@/components/OnboardingTutorial';
+import IllustratedEmptyState from '@/components/IllustratedEmptyState';
 
 export default function SearchPage() {
   const router = useRouter();
   const { isAuthenticated, loading: authLoading, user, logout } = useAuth();
+  const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [queryText, setQueryText] = useState('');
   const [useLlm, setUseLlm] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const { data, loading, error, refetch } = useQuery(SEARCH_QUERY, {
     variables: { query: searchQuery, useLlm },
@@ -28,28 +39,84 @@ export default function SearchPage() {
     }
   }, [isAuthenticated, authLoading, router]);
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + K to focus search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        document.getElementById('search')?.focus();
+      }
+      // Ctrl/Cmd + / to show keyboard shortcuts
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        // Trigger FAB menu to show shortcuts
+        const fabButton = document.querySelector('[aria-label="Quick actions menu"]') as HTMLElement;
+        fabButton?.click();
+      }
+      // Escape to clear search
+      if (e.key === 'Escape') {
+        setQueryText('');
+        document.getElementById('search')?.blur();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Scroll to top button visibility
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleSearch = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!queryText.trim()) return;
-    
+
     const query = queryText.trim();
     setSearchQuery(query);
     setHasSearched(true);
-    
+
+    // Add to search history
+    addToSearchHistory(query, useLlm);
+
     // Refetch with new query
     try {
       await refetch({ query, useLlm });
     } catch (err) {
       console.error('Search error:', err);
+      showToast('Search failed. Please try again.', 'error');
     }
   };
 
+  const handleHistorySelect = useCallback((query: string, llm: boolean) => {
+    setQueryText(query);
+    setUseLlm(llm);
+    setSearchQuery(query);
+    setHasSearched(true);
+
+    refetch({ query, useLlm: llm }).catch((err) => {
+      console.error('Search error:', err);
+      showToast('Search failed. Please try again.', 'error');
+    });
+  }, [refetch, showToast]);
+
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900 transition-colors">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
     );
@@ -60,40 +127,21 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Legal Research Assistant
-              </h1>
-              <p className="text-sm text-gray-500">AI-powered legal research</p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                Welcome, {user?.name}
-              </span>
-              <button
-                onClick={logout}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
+      <Header user={user} onLogout={logout} />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Search History */}
+        <SearchHistory onSelectQuery={handleHistorySelect} />
+
         {/* Search Form */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-soft p-6 mb-6 transform transition-all duration-300 hover:shadow-elevation-2 animate-fade-in">
           <form onSubmit={handleSearch} className="space-y-4">
             <div>
-              <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Ask a Legal Question
+                <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">(Press Ctrl+K to focus)</span>
               </label>
               <div className="flex gap-4">
                 <input
@@ -102,27 +150,37 @@ export default function SearchPage() {
                   value={queryText}
                   onChange={(e) => setQueryText(e.target.value)}
                   placeholder="e.g., What is the punishment for murder in IPC?"
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900 placeholder-gray-400"
+                  className="flex-1 px-4 py-3 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-slate-700 transition-all duration-300"
                   disabled={loading}
                 />
                 <button
                   type="submit"
                   disabled={loading || !queryText.trim()}
-                  className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+                  className="px-6 py-3 bg-gradient-primary text-white rounded-lg hover:shadow-elevation-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 font-medium transform hover:-translate-y-0.5 active:translate-y-0"
                 >
-                  {loading ? 'Searching...' : 'Search'}
+                  {loading ? (
+                    <span className="flex items-center space-x-2">
+                      <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Searching...</span>
+                    </span>
+                  ) : (
+                    'Search'
+                  )}
                 </button>
               </div>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center space-x-2">
               <input
                 id="use-llm"
                 type="checkbox"
                 checked={useLlm}
                 onChange={(e) => setUseLlm(e.target.checked)}
-                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-slate-600 rounded transition-colors"
               />
-              <label htmlFor="use-llm" className="ml-2 block text-sm text-gray-700">
+              <label htmlFor="use-llm" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
                 Use LLM for answer generation (slower but more conversational)
               </label>
             </div>
@@ -130,16 +188,11 @@ export default function SearchPage() {
         </div>
 
         {/* Loading State */}
-        {loading && (
-          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Searching legal documents...</p>
-          </div>
-        )}
+        {loading && <SearchResultsSkeleton />}
 
         {/* Error State */}
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+          <div className="bg-red-50 dark:bg-red-900 dark:bg-opacity-20 border border-red-200 dark:border-red-800 rounded-lg p-6 mb-6 animate-slide-up">
             <div className="flex">
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
@@ -147,10 +200,10 @@ export default function SearchPage() {
                 </svg>
               </div>
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">
+                <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
                   Error searching legal documents
                 </h3>
-                <div className="mt-2 text-sm text-red-700">
+                <div className="mt-2 text-sm text-red-700 dark:text-red-300">
                   <p>{error.message || 'An error occurred while processing your query. Please try again.'}</p>
                 </div>
                 <div className="mt-4">
@@ -160,7 +213,7 @@ export default function SearchPage() {
                       setQueryText('');
                       setHasSearched(false);
                     }}
-                    className="text-sm font-medium text-red-800 hover:text-red-900 underline"
+                    className="text-sm font-medium text-red-800 dark:text-red-200 hover:text-red-900 dark:hover:text-red-100 underline transition-colors"
                   >
                     Clear and try again
                   </button>
@@ -172,51 +225,42 @@ export default function SearchPage() {
 
         {/* Search Results */}
         {!loading && !error && data?.search && (
-          <div>
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">
+          <div className="animate-fade-in">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 Results for: &quot;{data.search.question}&quot;
               </h2>
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                {data.search.processing_time_ms && (
+                  <span>{(data.search.processing_time_ms / 1000).toFixed(2)}s</span>
+                )}
+              </div>
             </div>
             <SearchResults result={data.search} />
           </div>
         )}
 
-        {/* Empty State */}
+        {/* Empty State - No Results */}
         {!loading && !error && !data?.search && hasSearched && (
-          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">No results found</h3>
-            <p className="mt-2 text-sm text-gray-500">
-              Try rephrasing your question or check if the backend services are running.
-            </p>
-          </div>
+          <IllustratedEmptyState type="no-results" />
         )}
 
         {/* Initial State - Before First Search */}
         {!loading && !error && !data?.search && !hasSearched && (
-          <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <h3 className="mt-4 text-lg font-medium text-gray-900">Start your legal research</h3>
-            <p className="mt-2 text-sm text-gray-500">
-              Enter a legal question above to search through acts, judgments, and legal documents.
-            </p>
-            <div className="mt-6 text-left max-w-md mx-auto">
-              <p className="text-sm font-medium text-gray-700 mb-2">Example queries:</p>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• What is the punishment for murder?</li>
-                <li>• How do I file an FIR?</li>
-                <li>• What is anticipatory bail?</li>
-                <li>• What is the difference between murder and culpable homicide?</li>
-              </ul>
-            </div>
-          </div>
+          <IllustratedEmptyState type="search" />
         )}
       </main>
+
+      {/* Quick Actions FAB */}
+      <QuickActionsMenu />
+
+      {/* Top Loading Bar */}
+      <TopLoadingBar />
+
+      {/* Onboarding Tutorial */}
+      {showOnboarding && (
+        <OnboardingTutorial onComplete={() => setShowOnboarding(false)} />
+      )}
     </div>
   );
 }
