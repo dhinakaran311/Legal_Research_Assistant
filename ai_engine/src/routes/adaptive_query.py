@@ -140,9 +140,14 @@ async def get_adaptive_status() -> Dict[str, Any]:
         pipeline._ensure_clients()
         doc_count = pipeline.chroma_client.count()
         
+        # Get cache stats
+        cache_stats = {}
+        if hasattr(pipeline, 'cache') and pipeline.cache:
+            cache_stats = pipeline.cache.get_stats()
+        
         return {
             "status": "operational",
-            "version": "2.3.0",
+            "version": "2.4.0",
             "pipeline": {
                 "name": "Adaptive RAG",
                 "intents_supported": [
@@ -155,13 +160,15 @@ async def get_adaptive_status() -> Dict[str, Any]:
                     "unknown"
                 ],
                 "adaptive_retrieval_range": "2-10 documents",
-                "confidence_based_thresholds": True
+                "confidence_based_thresholds": True,
+                "caching_enabled": pipeline.use_cache
             },
             "database": {
                 "chroma_documents": doc_count,
                 "collection": settings.CHROMA_COLLECTION_NAME,
                 "embedding_model": settings.MODEL_NAME
             },
+            "cache": cache_stats,
             "message": f"Adaptive RAG Pipeline ready with {doc_count} legal documents."
         }
         

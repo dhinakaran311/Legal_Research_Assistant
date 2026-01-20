@@ -37,6 +37,14 @@ except ImportError:
     GRAPH_AVAILABLE = False
     logger.warning("Graph module not available, proceeding without graph enrichment")
 
+# Optional Cache imports (lazy loaded)
+try:
+    from cache import get_cache, CachePrefix, CacheTTL
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    logger.warning("Cache module not available, proceeding without caching")
+
 logger = logging.getLogger(__name__)
 
 
@@ -112,7 +120,8 @@ class AdaptiveRAGPipeline:
         embedder: Optional[Embedder] = None,
         neo4j_client = None,
         use_llm: bool = False,
-        llm_model: str = "llama3.2:3b"
+        llm_model: str = "llama3.2:3b",
+        use_cache: bool = True
     ):
         """
         Initialize the Adaptive RAG Pipeline
@@ -123,6 +132,7 @@ class AdaptiveRAGPipeline:
             neo4j_client: Optional Neo4j client for graph enrichment (will skip if not provided)
             use_llm: Whether to use LLM for answer generation (default: False)
             llm_model: Name of the Ollama model to use (default: llama3.2:3b)
+            use_cache: Whether to use Redis caching (default: True)
         """
         self.chroma_client = chroma_client
         self.embedder = embedder
@@ -131,6 +141,21 @@ class AdaptiveRAGPipeline:
         self.use_llm = use_llm and LLM_AVAILABLE
         self.llm_model = llm_model
         self.llm_generator = None  # Lazy loaded
+        
+        # Initialize cache
+        self.use_cache = use_cache and CACHE_AVAILABLE
+        self.cache = None
+        if self.use_cache:
+            try:
+                self.cache = get_cache()
+                if self.cache.enabled:
+                    logger.info("[CACHE] Redis caching enabled")
+                else:
+                    self.use_cache = False
+                    logger.info("[CACHE] Redis not available, caching disabled")
+            except Exception as e:
+                self.use_cache = False
+                logger.warning(f"[CACHE] Failed to initialize cache: {str(e)}")
         
         if use_llm and not LLM_AVAILABLE:
             logger.warning("LLM requested but not available, falling back to rule-based generation")
@@ -699,11 +724,11 @@ class AdaptiveRAGPipeline:
     
     def process_query(self, query: str, **kwargs) -> PipelineResult:
         """
-        Main pipeline: Process a query through all 4 stages
+        Main pipeline: Process a query through all 4 stages with caching
         
         Args:
             query: User's legal question
-            **kwargs: Additional options (max_docs, force_intent, etc.)
+            **kwargs: Additional options (max_docs, force_intent, bypass_cache, etc.)
             
         Returns:
             PipelineResult with structured answer and metadata
@@ -711,6 +736,23 @@ class AdaptiveRAGPipeline:
         start_time = time.time()
         
         logger.info(f"Processing query: {query}")
+        
+        # Check cache first (unless bypassed)
+        bypass_cache = kwargs.get('bypass_cache', False)
+        cache_key = None
+        
+        if self.use_cache and not bypass_cache:
+            cache_key = self.cache._generate_key(CachePrefix.SEARCH_RESULT, query)
+            cached_result = self.cache.get(cache_key)
+            
+            if cached_result:
+                logger.info("[CACHE HIT] Returning cached result")
+                # Update processing time to show cache speed
+                cached_result.processing_time_ms = (time.time() - start_time) * 1000
+                cached_result.metadata['cache_hit'] = True
+                return cached_result
+        
+        logger.info("[CACHE MISS] Processing query")
         
         # STAGE 1: Detect Intent
         intent_analysis = self.detect_intent(query)
@@ -764,9 +806,18 @@ class AdaptiveRAGPipeline:
                 'intent_confidence': intent_analysis.confidence,
                 'keywords_matched': intent_analysis.keywords_matched,
                 'documents_before_filtering': len(context.documents),
-                'graph_facts_found': len(graph_facts)  # NEW
+                'graph_facts_found': len(graph_facts),  # NEW
+                'cache_hit': False
             }
         )
+        
+        # Cache the result
+        if self.use_cache and cache_key:
+            try:
+                self.cache.set(cache_key, result, ttl=CacheTTL.SEARCH_RESULT)
+                logger.info("[CACHE] Result cached successfully")
+            except Exception as e:
+                logger.debug(f"[CACHE] Failed to cache result: {str(e)}")
         
         logger.info(
             f"Pipeline completed: intent={result.intent}, "
