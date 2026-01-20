@@ -68,64 +68,25 @@ class Neo4jClient:
             True if connection successful, False otherwise
         """
         try:
-            # #region agent log
-            import json
-            log_data = {
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "B",
-                "location": "neo4j_client.py:71",
-                "message": "Before driver.session() call",
-                "data": {
-                    "uri": self.uri,
-                    "username": self.username
-                },
-                "timestamp": int(__import__('time').time() * 1000)
-            }
-            log_path = r"d:\Dk\Legal Assistant\Legal_Research_Assistant\.cursor\debug.log"
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data) + "\n")
-            # #endregion
-            
             with self.driver.session() as session:
                 result = session.run("RETURN 1 AS test")
                 value = result.single()["test"]
                 
                 if value == 1:
-                    logger.info("✅ Neo4j connection successful")
+                    logger.info("[PASS] Neo4j connection successful")
                     return True
                 else:
-                    logger.error("❌ Neo4j connection test failed")
+                    logger.error("[FAIL] Neo4j connection test failed")
                     return False
                     
         except Exception as e:
-            # #region agent log
-            import json
-            log_data = {
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "B",
-                "location": "neo4j_client.py:84",
-                "message": "Exception in test_connection",
-                "data": {
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "error_args": str(e.args) if hasattr(e, 'args') else "N/A"
-                },
-                "timestamp": int(__import__('time').time() * 1000)
-            }
-            log_path = r"d:\Dk\Legal Assistant\Legal_Research_Assistant\.cursor\debug.log"
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data) + "\n")
-            # #endregion
-            
             error_msg = str(e)
-            logger.error(f"❌ Neo4j connection failed: {error_msg}")
+            logger.error(f"[FAIL] Neo4j connection failed: {error_msg}")
             
             # Provide specific guidance for DNS errors
             if "DNS resolve" in error_msg or "getaddrinfo failed" in error_msg:
                 logger.error("")
-                logger.error("⚠️  DNS Resolution Error Detected:")
+                logger.error("[WARN] DNS Resolution Error Detected:")
                 logger.error(f"   Cannot resolve hostname: {self.uri}")
                 logger.error("   Possible causes:")
                 logger.error("   1. Neo4j AuraDB instance may be paused or deleted")
@@ -133,7 +94,7 @@ class Neo4jClient:
                 logger.error("   3. Incorrect hostname in NEO4J_URI")
                 logger.error("   4. Firewall/proxy blocking DNS resolution")
                 logger.error("")
-                logger.error("   💡 Solutions:")
+                logger.error("   [INFO] Solutions:")
                 logger.error("   - Verify AuraDB instance status in Neo4j Console")
                 logger.error("   - Check internet connection")
                 logger.error("   - For local Neo4j, use: bolt://localhost:7687")
@@ -342,27 +303,6 @@ def get_neo4j_client(
             return None
         
         try:
-            # #region agent log
-            import json
-            log_data = {
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "A",
-                "location": "neo4j_client.py:287",
-                "message": "Before Neo4jClient initialization",
-                "data": {
-                    "uri": uri,
-                    "username": username,
-                    "password_length": len(password) if password else 0,
-                    "uri_scheme": uri.split("://")[0] if uri and "://" in uri else "N/A"
-                },
-                "timestamp": int(__import__('time').time() * 1000)
-            }
-            log_path = r"d:\Dk\Legal Assistant\Legal_Research_Assistant\.cursor\debug.log"
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data) + "\n")
-            # #endregion
-            
             _neo4j_instance = Neo4jClient(uri, username, password)
             
             # Test connection
@@ -371,26 +311,6 @@ def get_neo4j_client(
                 _neo4j_instance = None
                 
         except Exception as e:
-            # #region agent log
-            import json
-            log_data = {
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "E",
-                "location": "neo4j_client.py:296",
-                "message": "Exception during Neo4jClient initialization",
-                "data": {
-                    "error_type": type(e).__name__,
-                    "error_message": str(e),
-                    "error_args": str(e.args) if hasattr(e, 'args') else "N/A"
-                },
-                "timestamp": int(__import__('time').time() * 1000)
-            }
-            log_path = r"d:\Dk\Legal Assistant\Legal_Research_Assistant\.cursor\debug.log"
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_data) + "\n")
-            # #endregion
-            
             logger.error(f"Failed to initialize Neo4j client: {str(e)}")
             _neo4j_instance = None
     

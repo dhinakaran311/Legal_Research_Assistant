@@ -63,13 +63,13 @@ def load_act_json_files(act_key: str) -> list:
     act_dir = STORAGE_BASE_DIR / act_key.lower()
     
     if not act_dir.exists():
-        logger.warning(f"⚠️  Storage directory not found: {act_dir}")
+        logger.warning(f"[WARN] Storage directory not found: {act_dir}")
         return []
     
     json_files = list(act_dir.glob("section_*.json"))
     
     if not json_files:
-        logger.warning(f"⚠️  No JSON files found in {act_dir}")
+        logger.warning(f"[WARN] No JSON files found in {act_dir}")
         return []
     
     logger.info(f"📁 Found {len(json_files)} JSON files for {act_key.upper()}")
@@ -82,7 +82,7 @@ def load_act_json_files(act_key: str) -> list:
                 sections.append(data)
                 logger.info(f"   ✓ Loaded: {json_file.name}")
         except Exception as e:
-            logger.error(f"❌ Failed to load {json_file.name}: {str(e)}")
+            logger.error(f"[FAIL] Failed to load {json_file.name}: {str(e)}")
     
     return sections
 
@@ -134,7 +134,7 @@ def create_act_node(neo4j_client: Neo4jClient, act_key: str) -> bool:
     """
     config = get_act_config(act_key)
     if not config:
-        logger.error(f"❌ Unknown act: {act_key}")
+        logger.error(f"[FAIL] Unknown act: {act_key}")
         return False
     
     act_name = config.get("full_name", act_key.upper())
@@ -163,13 +163,13 @@ def create_act_node(neo4j_client: Neo4jClient, act_key: str) -> bool:
     try:
         result = neo4j_client.run_query(query, params)
         if result:
-            logger.info(f"   ✅ Act node created/updated: {short_name}")
+            logger.info(f"   [PASS] Act node created/updated: {short_name}")
             return True
         else:
-            logger.error(f"   ❌ Failed to create Act node: {short_name}")
+            logger.error(f"   [FAIL] Failed to create Act node: {short_name}")
             return False
     except Exception as e:
-        logger.error(f"   ❌ Error creating Act node: {str(e)}")
+        logger.error(f"   [FAIL] Error creating Act node: {str(e)}")
         return False
 
 
@@ -229,13 +229,13 @@ def create_section_node(
     try:
         result = neo4j_client.run_query(query, params)
         if result:
-            logger.info(f"   ✅ Section node created/updated: {section_id}")
+            logger.info(f"   [PASS] Section node created/updated: {section_id}")
             return True
         else:
-            logger.error(f"   ❌ Failed to create Section node: {section_id}")
+            logger.error(f"   [FAIL] Failed to create Section node: {section_id}")
             return False
     except Exception as e:
-        logger.error(f"   ❌ Error creating Section node: {str(e)}")
+        logger.error(f"   [FAIL] Error creating Section node: {str(e)}")
         return False
 
 
@@ -273,10 +273,10 @@ def create_has_section_relationship(
             logger.debug(f"   ✓ HAS_SECTION relationship: {act_short_name} -> {section_id}")
             return True
         else:
-            logger.warning(f"   ⚠️  Failed to create HAS_SECTION relationship")
+            logger.warning(f"   [WARN] Failed to create HAS_SECTION relationship")
             return False
     except Exception as e:
-        logger.error(f"   ❌ Error creating relationship: {str(e)}")
+        logger.error(f"   [FAIL] Error creating relationship: {str(e)}")
         return False
 
 
@@ -336,7 +336,7 @@ def create_section_references(
                     relationships_created += 1
                     logger.debug(f"   ✓ RELATED_TO: {section_id} -> {ref_section_id}")
             except Exception as e:
-                logger.debug(f"   ⚠️  Could not create relationship: {str(e)}")
+                logger.debug(f"   [WARN] Could not create relationship: {str(e)}")
     
     return relationships_created
 
@@ -361,10 +361,10 @@ def create_indexes(neo4j_client: Neo4jClient) -> bool:
     try:
         for index_query in indexes:
             neo4j_client.run_query(index_query)
-        logger.info("   ✅ Indexes created/verified")
+        logger.info("   [PASS] Indexes created/verified")
         return True
     except Exception as e:
-        logger.warning(f"   ⚠️  Could not create indexes: {str(e)}")
+        logger.warning(f"   [WARN] Could not create indexes: {str(e)}")
         return False
 
 
@@ -382,32 +382,32 @@ def load_act_to_neo4j(act_key: str, neo4j_client: Neo4jClient, create_references
     """
     config = get_act_config(act_key)
     if not config:
-        logger.error(f"❌ Unknown act: {act_key}")
+        logger.error(f"[FAIL] Unknown act: {act_key}")
         return False
     
     act_name = config.get("short_name", act_key.upper())
     
     try:
-        logger.info(f"\n📝 Loading {act_name} sections into Neo4j...")
+        logger.info(f"\n[LOADING] Loading {act_name} sections into Neo4j...")
         
         # Step 1: Create Act node
-        logger.info(f"📝 Step 1: Creating Act node...")
+        logger.info(f"[STEP 1] Creating Act node...")
         if not create_act_node(neo4j_client, act_key):
-            logger.error(f"❌ Failed to create Act node for {act_name}")
+            logger.error(f"[FAIL] Failed to create Act node for {act_name}")
             return False
         
         # Step 2: Load JSON files
-        logger.info(f"📝 Step 2: Loading JSON files...")
+        logger.info(f"[STEP 2] Loading JSON files...")
         sections = load_act_json_files(act_key)
         
         if not sections:
-            logger.warning(f"⚠️  No sections to load for {act_name}. Run scraper first.")
+            logger.warning(f"[WARN] No sections to load for {act_name}. Run scraper first.")
             return False
         
-        logger.info(f"✅ Loaded {len(sections)} sections")
+        logger.info(f"[PASS] Loaded {len(sections)} sections")
         
         # Step 3: Create Section nodes and relationships
-        logger.info(f"📝 Step 3: Creating Section nodes...")
+        logger.info(f"[STEP 3] Creating Section nodes...")
         sections_created = 0
         relationships_created = 0
         reference_relationships = 0
@@ -439,15 +439,15 @@ def load_act_to_neo4j(act_key: str, neo4j_client: Neo4jClient, create_references
                         )
                         reference_relationships += ref_count
         
-        logger.info(f"✅ Created {sections_created} Section nodes")
-        logger.info(f"✅ Created {relationships_created} HAS_SECTION relationships")
+        logger.info(f"[PASS] Created {sections_created} Section nodes")
+        logger.info(f"[PASS] Created {relationships_created} HAS_SECTION relationships")
         if create_references:
-            logger.info(f"✅ Created {reference_relationships} RELATED_TO relationships")
+            logger.info(f"[PASS] Created {reference_relationships} RELATED_TO relationships")
         
         return True
         
     except Exception as e:
-        logger.error(f"❌ Failed to load {act_name} data: {str(e)}", exc_info=True)
+        logger.error(f"[FAIL] Failed to load {act_name} data: {str(e)}", exc_info=True)
         return False
 
 
@@ -460,43 +460,12 @@ def load_all_acts_to_neo4j(act_keys: list = None, create_references: bool = True
         create_references: Whether to create RELATED_TO relationships from content
     """
     logger.info("=" * 70)
-    logger.info("🚀 Loading Multiple Acts into Neo4j Knowledge Graph")
+    logger.info("[START] Loading Multiple Acts into Neo4j Knowledge Graph")
     logger.info("=" * 70)
     
     try:
         # Step 1: Initialize Neo4j client
-        logger.info("\n📝 Step 1: Initializing Neo4j client...")
-        
-        # #region agent log
-        import json
-        import socket
-        uri_hostname = settings.NEO4J_URI.split("://")[1].split(":")[0] if "://" in settings.NEO4J_URI else "N/A"
-        dns_resolvable = False
-        try:
-            socket.gethostbyname(uri_hostname)
-            dns_resolvable = True
-        except Exception as dns_err:
-            dns_resolvable = False
-        
-        log_data = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "B",
-            "location": "load_multi_act_to_neo4j.py:470",
-            "message": "Before get_neo4j_client call",
-            "data": {
-                "uri": settings.NEO4J_URI,
-                "uri_hostname": uri_hostname,
-                "dns_resolvable": dns_resolvable,
-                "username": settings.NEO4J_USERNAME,
-                "password_length": len(settings.NEO4J_PASSWORD) if settings.NEO4J_PASSWORD else 0,
-                "uri_type": type(settings.NEO4J_URI).__name__
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        with open(r"d:\Dk\Legal Assistant\Legal_Research_Assistant\.cursor\debug.log", "a", encoding="utf-8") as f:
-            f.write(json.dumps(log_data) + "\n")
-        # #endregion
+        logger.info("\n[STEP 1] Initializing Neo4j client...")
         
         neo4j_client = get_neo4j_client(
             uri=settings.NEO4J_URI,
@@ -504,27 +473,10 @@ def load_all_acts_to_neo4j(act_keys: list = None, create_references: bool = True
             password=settings.NEO4J_PASSWORD
         )
         
-        # #region agent log
-        log_data = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "C",
-            "location": "load_multi_act_to_neo4j.py:490",
-            "message": "After get_neo4j_client call",
-            "data": {
-                "client_is_none": neo4j_client is None,
-                "client_type": type(neo4j_client).__name__ if neo4j_client else "NoneType"
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        with open(r"d:\Dk\Legal Assistant\Legal_Research_Assistant\.cursor\debug.log", "a", encoding="utf-8") as f:
-            f.write(json.dumps(log_data) + "\n")
-        # #endregion
-        
         if not neo4j_client:
-            logger.error("❌ Failed to initialize Neo4j client. Check credentials in .env")
+            logger.error("[FAIL] Failed to initialize Neo4j client. Check credentials in .env")
             logger.error("")
-            logger.error("💡 Troubleshooting:")
+            logger.error("[INFO] Troubleshooting:")
             logger.error(f"   1. Verify Neo4j URI: {settings.NEO4J_URI}")
             logger.error("   2. Check if Neo4j AuraDB instance exists and is running")
             logger.error("   3. Verify network connectivity and DNS resolution")
@@ -533,30 +485,14 @@ def load_all_acts_to_neo4j(act_keys: list = None, create_references: bool = True
             return False
         
         # Test connection
-        # #region agent log
-        log_data = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "B",
-            "location": "load_multi_act_to_neo4j.py:500",
-            "message": "Before test_connection call",
-            "data": {
-                "client_uri": neo4j_client.uri if hasattr(neo4j_client, 'uri') else "N/A"
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        with open(r"d:\Dk\Legal Assistant\Legal_Research_Assistant\.cursor\debug.log", "a", encoding="utf-8") as f:
-            f.write(json.dumps(log_data) + "\n")
-        # #endregion
-        
         if not neo4j_client.test_connection():
-            logger.error("❌ Neo4j connection test failed")
+            logger.error("[FAIL] Neo4j connection test failed")
             return False
         
-        logger.info("✅ Neo4j connected")
+        logger.info("[PASS] Neo4j connected")
         
         # Step 2: Create indexes
-        logger.info("\n📝 Step 2: Creating indexes...")
+        logger.info("\n[STEP 2] Creating indexes...")
         create_indexes(neo4j_client)
         
         # Step 3: Determine which acts to load
@@ -568,10 +504,10 @@ def load_all_acts_to_neo4j(act_keys: list = None, create_references: bool = True
                     act_keys.append(act_dir.name)
             
             if not act_keys:
-                logger.error("❌ No act directories found with JSON files. Run scraper first.")
+                logger.error("[FAIL] No act directories found with JSON files. Run scraper first.")
                 return False
         
-        logger.info(f"\n📝 Step 3: Loading acts: {', '.join([a.upper() for a in act_keys])}")
+        logger.info(f"\n[STEP 3] Loading acts: {', '.join([a.upper() for a in act_keys])}")
         
         # Step 4: Load each act
         results = {}
@@ -581,11 +517,11 @@ def load_all_acts_to_neo4j(act_keys: list = None, create_references: bool = True
         for act_key in act_keys:
             config = get_act_config(act_key)
             if not config:
-                logger.warning(f"⚠️  Skipping unknown act: {act_key}")
+                logger.warning(f"[WARN] Skipping unknown act: {act_key}")
                 continue
             
             logger.info(f"\n{'=' * 70}")
-            logger.info(f"📚 Processing Act: {config.get('full_name', act_key)}")
+            logger.info(f"[ACT] Processing Act: {config.get('full_name', act_key)}")
             logger.info(f"{'=' * 70}")
             
             success = load_act_to_neo4j(act_key, neo4j_client, create_references)
@@ -597,7 +533,7 @@ def load_all_acts_to_neo4j(act_keys: list = None, create_references: bool = True
         
         # Step 5: Summary
         logger.info(f"\n{'=' * 70}")
-        logger.info("📊 Final Status")
+        logger.info("[SUMMARY] Final Status")
         logger.info("=" * 70)
         
         # Count nodes and relationships
@@ -625,7 +561,7 @@ def load_all_acts_to_neo4j(act_keys: list = None, create_references: bool = True
         logger.info(f"   Sections processed: {total_sections}")
         
         # Step 6: Test query
-        logger.info(f"\n📝 Step 4: Testing graph query...")
+        logger.info(f"\n[STEP 4] Testing graph query...")
         test_query = """
         MATCH (a:Act {short_name: "CrPC"})-[:HAS_SECTION]->(s:Section)
         RETURN a.short_name AS act, count(s) AS section_count
@@ -634,39 +570,21 @@ def load_all_acts_to_neo4j(act_keys: list = None, create_references: bool = True
         
         test_result = neo4j_client.run_query(test_query)
         if test_result:
-            logger.info(f"   ✅ Test query successful")
+            logger.info(f"   [PASS] Test query successful")
             result = test_result[0]
             logger.info(f"      {result.get('act')}: {result.get('section_count')} sections")
         
         logger.info("\n" + "=" * 70)
-        logger.info("✅ Multi-act data loaded into Neo4j successfully!")
+        logger.info("[SUCCESS] Multi-act data loaded into Neo4j successfully!")
         logger.info("=" * 70)
         
         return True
         
     except Exception as e:
-        logger.error(f"\n❌ Failed to load multi-act data: {str(e)}", exc_info=True)
+        logger.error(f"\n[FAIL] Failed to load multi-act data: {str(e)}", exc_info=True)
         return False
     finally:
         # Close Neo4j connection
-        # #region agent log
-        log_data = {
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "D",
-            "location": "load_multi_act_to_neo4j.py:578",
-            "message": "In finally block before close",
-            "data": {
-                "neo4j_client_in_locals": 'neo4j_client' in locals(),
-                "neo4j_client_is_none": 'neo4j_client' in locals() and neo4j_client is None,
-                "neo4j_client_type": type(neo4j_client).__name__ if 'neo4j_client' in locals() and neo4j_client else "N/A"
-            },
-            "timestamp": int(__import__('time').time() * 1000)
-        }
-        with open(r"d:\Dk\Legal Assistant\Legal_Research_Assistant\.cursor\debug.log", "a", encoding="utf-8") as f:
-            f.write(json.dumps(log_data) + "\n")
-        # #endregion
-        
         if 'neo4j_client' in locals() and neo4j_client is not None:
             neo4j_client.close()
 
