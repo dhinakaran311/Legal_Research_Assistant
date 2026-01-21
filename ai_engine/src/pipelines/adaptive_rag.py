@@ -20,6 +20,9 @@ from vectorstore.chroma_client import ChromaClient
 from embeddings.embedder import Embedder
 from config import settings
 
+# Configure logger FIRST (before using it in try-except blocks)
+logger = logging.getLogger(__name__)
+
 # Optional LLM imports (lazy loaded)
 try:
     from llm.ollama_generator import OllamaGenerator
@@ -44,8 +47,6 @@ try:
 except ImportError:
     CACHE_AVAILABLE = False
     logger.warning("Cache module not available, proceeding without caching")
-
-logger = logging.getLogger(__name__)
 
 
 class QueryIntent(str, Enum):
@@ -544,6 +545,7 @@ class AdaptiveRAGPipeline:
             sources.append({
                 'id': doc_id,
                 'title': title,
+                'content': document,  # ADD: Full content for frontend/API
                 'excerpt': excerpt,
                 'relevance_score': round(score, 4),
                 'metadata': metadata,
