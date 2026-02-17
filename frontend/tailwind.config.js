@@ -62,7 +62,137 @@ module.exports = {
       backdropBlur: {
         'xs': '2px',
       },
+      typography: (theme) => ({
+        DEFAULT: {
+          css: {
+            maxWidth: 'none',
+            color: theme('colors.gray.700'),
+            a: {
+              color: theme('colors.primary.600'),
+              '&:hover': {
+                color: theme('colors.primary.700'),
+              },
+              textDecoration: 'underline',
+              fontWeight: '500',
+            },
+            'h1, h2, h3, h4, h5, h6': {
+              color: theme('colors.gray.900'),
+              fontWeight: '600',
+            },
+            code: {
+              color: theme('colors.primary.700'),
+              backgroundColor: theme('colors.gray.100'),
+              padding: '0.2em 0.4em',
+              borderRadius: '0.25rem',
+              fontWeight: '500',
+            },
+            'code::before': {
+              content: '""',
+            },
+            'code::after': {
+              content: '""',
+            },
+            pre: {
+              backgroundColor: theme('colors.gray.900'),
+              color: theme('colors.gray.100'),
+              borderRadius: '0.5rem',
+              padding: '1rem',
+            },
+            'pre code': {
+              backgroundColor: 'transparent',
+              color: 'inherit',
+              padding: '0',
+            },
+            blockquote: {
+              borderLeftColor: theme('colors.primary.500'),
+              borderLeftWidth: '4px',
+              fontStyle: 'italic',
+              color: theme('colors.gray.700'),
+              backgroundColor: theme('colors.primary.50'),
+              padding: '1rem',
+              borderRadius: '0.375rem',
+            },
+            table: {
+              width: '100%',
+              borderCollapse: 'collapse',
+            },
+            'thead th': {
+              backgroundColor: theme('colors.primary.100'),
+              color: theme('colors.primary.900'),
+              fontWeight: '600',
+              padding: '0.75rem',
+              borderBottom: `2px solid ${theme('colors.primary.300')}`,
+            },
+            'tbody td': {
+              padding: '0.75rem',
+              borderBottom: `1px solid ${theme('colors.gray.200')}`,
+            },
+            'tbody tr:hover': {
+              backgroundColor: theme('colors.gray.50'),
+            },
+            strong: {
+              color: theme('colors.gray.900'),
+              fontWeight: '700',
+            },
+            ul: {
+              listStyleType: 'disc',
+            },
+            ol: {
+              listStyleType: 'decimal',
+            },
+            'ul > li': {
+              paddingLeft: '0.5rem',
+            },
+            'ol > li': {
+              paddingLeft: '0.5rem',
+            },
+          },
+        },
+        invert: {
+          css: {
+            color: theme('colors.gray.300'),
+            a: {
+              color: theme('colors.primary.400'),
+              '&:hover': {
+                color: theme('colors.primary.300'),
+              },
+            },
+            'h1, h2, h3, h4, h5, h6': {
+              color: theme('colors.white'),
+            },
+            code: {
+              color: theme('colors.primary.300'),
+              backgroundColor: theme('colors.slate.700'),
+            },
+            pre: {
+              backgroundColor: theme('colors.slate.900'),
+              color: theme('colors.gray.100'),
+            },
+            blockquote: {
+              borderLeftColor: theme('colors.primary.400'),
+              color: theme('colors.gray.300'),
+              backgroundColor: theme('colors.slate.700'),
+            },
+            'thead th': {
+              backgroundColor: theme('colors.slate.700'),
+              color: theme('colors.primary.300'),
+              borderBottomColor: theme('colors.slate.600'),
+            },
+            'tbody td': {
+              borderBottomColor: theme('colors.slate.700'),
+            },
+            'tbody tr:hover': {
+              backgroundColor: theme('colors.slate.700'),
+            },
+            strong: {
+              color: theme('colors.white'),
+            },
+          },
+        },
+      }),
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/typography'),
+  ],
 }

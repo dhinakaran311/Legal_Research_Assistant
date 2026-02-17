@@ -2,6 +2,10 @@
 
 import React, { useState } from 'react';
 import { useToast } from '@/contexts/ToastContext';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github-dark.css';
 
 interface SourceMetadata {
   section?: string;
@@ -92,7 +96,7 @@ export default function SearchResults({ result }: SearchResultsProps) {
   return (
     <div className="space-y-6">
       {/* Answer Section */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-soft p-6 border-l-4 border-primary-600 transition-all duration-300 hover:shadow-elevation-2 animate-slide-up">
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-soft p-6 border-l-4 border-primary-600 transition-all duration-300 hover:shadow-elevation-2 animate-slide-up hover-lift">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <div className="flex items-center space-x-3 mb-3">
@@ -138,10 +142,31 @@ export default function SearchResults({ result }: SearchResultsProps) {
             )}
           </button>
         </div>
-        <div className="prose max-w-none dark:prose-invert">
-          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed">
+        <div className="prose prose-legal max-w-none dark:prose-invert">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeHighlight]}
+            components={{
+              // Custom link renderer to open in new tab
+              a: ({ node, ...props }: any) => (
+                <a {...props} target="_blank" rel="noopener noreferrer" />
+              ),
+              // Custom code renderer for better styling
+              code: ({ node, inline, className, children, ...props }: any) => {
+                return !inline ? (
+                  <code className={className} {...props}>
+                    {children}
+                  </code>
+                ) : (
+                  <code className="px-1.5 py-0.5 rounded bg-primary-100 dark:bg-slate-700 text-primary-700 dark:text-primary-300" {...props}>
+                    {children}
+                  </code>
+                );
+              },
+            }}
+          >
             {result.answer}
-          </p>
+          </ReactMarkdown>
         </div>
       </div>
 
@@ -158,7 +183,7 @@ export default function SearchResults({ result }: SearchResultsProps) {
             {result.sources.map((source, index) => (
               <div
                 key={index}
-                className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 hover:border-primary-300 dark:hover:border-primary-600 transition-all duration-300 hover:shadow-md group"
+                className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 hover:border-primary-300 dark:hover:border-primary-600 transition-all duration-300 hover:shadow-md group hover-lift"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 flex flex-wrap items-center gap-2">
@@ -237,7 +262,7 @@ export default function SearchResults({ result }: SearchResultsProps) {
             {result.graph_references.map((ref, index) => (
               <div
                 key={index}
-                className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 hover:border-primary-300 dark:hover:border-primary-600 transition-all duration-300 hover:shadow-md transform hover:-translate-y-1"
+                className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 hover:border-primary-300 dark:hover:border-primary-600 transition-all duration-300 hover:shadow-md hover-lift"
               >
                 {ref.case_name && (
                   <div className="mb-2">

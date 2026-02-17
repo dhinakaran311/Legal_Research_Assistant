@@ -9,24 +9,28 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@apollo/client": "^3.8.10",
+    "@tailwindcss/typography": "^0.5.19",
+    "axios": "^1.6.5",
+    "graphql": "^16.8.1",
+    "js-cookie": "^3.0.5",
     "next": "14.0.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@apollo/client": "^3.8.10",
-    "graphql": "^16.8.1",
-    "axios": "^1.6.5",
-    "js-cookie": "^3.0.5"
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@types/js-cookie": "^3.0.6",
     "@types/node": "^20.10.6",
     "@types/react": "^18.2.46",
     "@types/react-dom": "^18.2.18",
-    "@types/js-cookie": "^3.0.6",
-    "typescript": "^5.3.3",
-    "tailwindcss": "^3.4.0",
-    "postcss": "^8.4.32",
     "autoprefixer": "^10.4.16",
     "eslint": "^8.56.0",
-    "eslint-config-next": "14.0.4"
+    "eslint-config-next": "14.0.4",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.3.3"
   }
 }
