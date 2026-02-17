@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Optional LLM imports (lazy loaded)
 try:
-    from llm.ollama_generator import OllamaGenerator
+    from llm.gemini_generator import GeminiGenerator
     from llm.prompts import build_prompt, format_context_for_llm
     LLM_AVAILABLE = True
 except ImportError:
@@ -121,7 +121,6 @@ class AdaptiveRAGPipeline:
         embedder: Optional[Embedder] = None,
         neo4j_client = None,
         use_llm: bool = False,
-        llm_model: str = "llama3.2:3b",
         use_cache: bool = True
     ):
         """
@@ -132,7 +131,6 @@ class AdaptiveRAGPipeline:
             embedder: Optional embedder instance (will create if not provided)
             neo4j_client: Optional Neo4j client for graph enrichment (will skip if not provided)
             use_llm: Whether to use LLM for answer generation (default: False)
-            llm_model: Name of the Ollama model to use (default: llama3.2:3b)
             use_cache: Whether to use Redis caching (default: True)
         """
         self.chroma_client = chroma_client
@@ -140,7 +138,6 @@ class AdaptiveRAGPipeline:
         self.neo4j_client = neo4j_client
         self.use_graph = neo4j_client is not None and GRAPH_AVAILABLE
         self.use_llm = use_llm and LLM_AVAILABLE
-        self.llm_model = llm_model
         self.llm_generator = None  # Lazy loaded
         
         # Initialize cache
@@ -554,14 +551,14 @@ class AdaptiveRAGPipeline:
         return sources
     
     def _ensure_llm_generator(self) -> None:
-        """Lazy load Ollama generator"""
+        """Lazy load Gemini generator"""
         if self.llm_generator is None:
-            logger.info(f"Initializing Ollama generator with model: {self.llm_model}")
-            self.llm_generator = OllamaGenerator(model_name=self.llm_model)
+            logger.info("Initializing Gemini generator...")
+            self.llm_generator = GeminiGenerator()
             
             # Check health
             if not self.llm_generator.check_health():
-                raise Exception("Ollama health check failed")
+                raise Exception("Gemini health check failed")
     
     def _generate_llm_answer(
         self,
@@ -569,7 +566,7 @@ class AdaptiveRAGPipeline:
         context: RetrievedContext,
         intent_analysis: IntentAnalysis
     ) -> str:
-        """Generate answer using Ollama LLM"""
+        """Generate answer using Gemini LLM"""
         self._ensure_llm_generator()
         
         # Format context for LLM
@@ -586,7 +583,7 @@ class AdaptiveRAGPipeline:
             context=context_text
         )
         
-        # Generate with Ollama
+        # Generate with Gemini
         answer = self.llm_generator.generate(
             prompt=prompt,
             max_tokens=512,

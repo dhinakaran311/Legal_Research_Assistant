@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # Internal API Security
     INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "")
     
+    # Google Gemini LLM
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    
     # Application Settings
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

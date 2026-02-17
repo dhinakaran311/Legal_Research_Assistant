@@ -1,9 +1,9 @@
 """
 LLM Module
-Handles LLM-based answer generation
+Handles LLM-based answer generation using Google Gemini
 """
 
-from .ollama_generator import OllamaGenerator
+from .gemini_generator import GeminiGenerator
 from .prompts import LEGAL_PROMPTS
 
-__all__ = ['OllamaGenerator', 'LEGAL_PROMPTS']
+__all__ = ['GeminiGenerator', 'LEGAL_PROMPTS']
