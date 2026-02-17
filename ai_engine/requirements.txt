@@ -8,15 +8,11 @@ python-dotenv==1.0.0
 # CORS and middleware
 python-multipart==0.0.6
 
-# Future AI/ML dependencies (for upcoming modules)
-# langchain==0.1.0
-# chromadb==0.4.22
-# sentence-transformers==2.2.2
-# neo4j==5.15.0
-# openai==1.7.2
-# huggingface-hub==0.20.2
+# PyTorch CPU-only (much smaller, no CUDA — required for Render free tier)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch --index-url https://download.pytorch.org/whl/cpu
 
-# Utilities
+# AI/ML dependencies
 requests==2.31.0
 chromadb
 sentence-transformers
