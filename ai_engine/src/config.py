@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
     
+    # Pinecone Vector DB
+    PINECONE_API_KEY: str = os.getenv("PINECONE_API_KEY", "")
+    PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "legal-documents")
+    PINECONE_NAMESPACE: str = os.getenv("PINECONE_NAMESPACE", "legal_documents")
+    
     # Application Settings
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")

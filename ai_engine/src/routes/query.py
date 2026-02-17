@@ -58,19 +58,19 @@ async def process_query(request: QueryRequest) -> QueryResponse:
     try:
         logger.info(f"Processing query: {request.question}")
         
-        # Initialize ChromaDB client (create fresh instance to avoid singleton caching)
-        from vectorstore.chroma_client import ChromaClient
-        chroma_client = ChromaClient(
-            persist_directory=settings.CHROMA_DB_PATH,
-            collection_name=settings.CHROMA_COLLECTION_NAME,
-            embedding_model=settings.MODEL_NAME
+        # Initialize Pinecone client
+        from vectorstore.pinecone_client import PineconeClient
+        pinecone_client = PineconeClient(
+            api_key=settings.PINECONE_API_KEY,
+            index_name=settings.PINECONE_INDEX_NAME,
+            namespace=settings.PINECONE_NAMESPACE
         )
-        chroma_client.connect()
+        pinecone_client.connect()
         
         # Check if collection has documents
-        doc_count = chroma_client.count()
+        doc_count = pinecone_client.count()
         if doc_count == 0:
-            logger.warning("ChromaDB collection is empty")
+            logger.warning("Pinecone index is empty")
             raise HTTPException(
                 status_code=503,
                 detail="Knowledge base is empty. Please load legal documents first."
@@ -79,7 +79,7 @@ async def process_query(request: QueryRequest) -> QueryResponse:
         logger.info(f"Searching in collection with {doc_count} documents")
         
         # Perform semantic search
-        results = chroma_client.query(
+        results = pinecone_client.query(
             query_texts=[request.question],
             n_results=min(request.max_results, 10)  # Cap at 10 results
         )
@@ -168,18 +168,19 @@ async def get_status() -> Dict[str, Any]:
         Status information including available models and database connections
     """
     try:
-        # Check ChromaDB status (create fresh instance)
-        from vectorstore.chroma_client import ChromaClient
-        chroma_client = ChromaClient(
-            persist_directory=settings.CHROMA_DB_PATH,
-            collection_name=settings.CHROMA_COLLECTION_NAME
+        # Check Pinecone status
+        from vectorstore.pinecone_client import PineconeClient
+        pinecone_client = PineconeClient(
+            api_key=settings.PINECONE_API_KEY,
+            index_name=settings.PINECONE_INDEX_NAME,
+            namespace=settings.PINECONE_NAMESPACE
         )
-        chroma_client.connect()
-        doc_count = chroma_client.count()
+        pinecone_client.connect()
+        doc_count = pinecone_client.count()
         vectordb_status = "operational"
         
     except Exception as e:
-        logger.error(f"ChromaDB error: {str(e)}")
+        logger.error(f"Pinecone error: {str(e)}")
         doc_count = 0
         vectordb_status = "error"
     

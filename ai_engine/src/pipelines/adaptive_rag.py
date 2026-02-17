@@ -16,7 +16,7 @@ import re
 import time
 from dataclasses import dataclass
 
-from vectorstore.chroma_client import ChromaClient
+from vectorstore.pinecone_client import PineconeClient
 from embeddings.embedder import Embedder
 from config import settings
 
@@ -117,7 +117,7 @@ class AdaptiveRAGPipeline:
     
     def __init__(
         self,
-        chroma_client: Optional[ChromaClient] = None,
+        chroma_client: Optional[PineconeClient] = None,
         embedder: Optional[Embedder] = None,
         neo4j_client = None,
         use_llm: bool = False,
@@ -236,15 +236,15 @@ class AdaptiveRAGPipeline:
         )
     
     def _ensure_clients(self) -> None:
-        """Ensure ChromaDB and Embedder clients are initialized"""
+        """Ensure Pinecone and Embedder clients are initialized"""
         if self.chroma_client is None:
-            self.chroma_client = ChromaClient(
-                persist_directory=settings.CHROMA_DB_PATH,
-                collection_name=settings.CHROMA_COLLECTION_NAME,
-                embedding_model=settings.MODEL_NAME
+            self.chroma_client = PineconeClient(
+                api_key=settings.PINECONE_API_KEY,
+                index_name=settings.PINECONE_INDEX_NAME,
+                namespace=settings.PINECONE_NAMESPACE
             )
             self.chroma_client.connect()
-            logger.info("ChromaDB client initialized")
+            logger.info("Pinecone client initialized")
         
         if self.embedder is None:
             self.embedder = Embedder(model_name=settings.MODEL_NAME)
