@@ -22,7 +22,7 @@ async def verify_internal_api_key(request: Request, call_next):
     """
     # Allow public endpoints
     public_paths = ["/health", "/docs", "/openapi.json", "/redoc"]
-    if any(request.url.path.startswith(path) for path in public_paths):
+    if request.url.path == "/" or any(request.url.path.startswith(path) for path in public_paths):
         return await call_next(request)
     
     # Check API key for protected endpoints
