@@ -55,6 +55,13 @@ export const typeDefs = gql`
     intent_reasoning: String
   }
 
+  type WebSource {
+    title: String
+    url: String
+    content: String
+    web_source: String
+  }
+
   type SearchResult {
     question: String!
     intent: String!
@@ -62,6 +69,7 @@ export const typeDefs = gql`
     answer: String!
     sources: [Source]!
     graph_references: [GraphReference]!
+    web_sources: [WebSource]!
     documents_used: Int!
     retrieval_strategy: RetrievalStrategy!
     confidence: Float!
@@ -112,6 +120,14 @@ export const resolvers = {
           relationship: ref.relationship || null
         }));
         
+        // Transform web_sources for GraphQL (flatten metadata)
+        const transformedWebSources = (result.web_sources || []).map(ws => ({
+          title: ws.metadata?.title || 'Untitled',
+          url: ws.metadata?.url || '',
+          content: ws.content || '',
+          web_source: ws.metadata?.web_source || 'web'
+        }));
+
         // Return transformed result
         return {
           question: result.question || query,
@@ -120,6 +136,7 @@ export const resolvers = {
           answer: result.answer || 'No answer available',
           sources: transformedSources,
           graph_references: transformedGraphRefs,
+          web_sources: transformedWebSources,
           documents_used: result.documents_used || result.num_sources_retrieved || 0,
           retrieval_strategy: result.retrieval_strategy || {
             num_documents_requested: 0,
