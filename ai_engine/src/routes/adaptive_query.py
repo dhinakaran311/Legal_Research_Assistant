@@ -38,7 +38,7 @@ def _get_pipeline(use_llm: bool = False) -> AgenticPipeline:
             llm = get_llm()
 
         _pipeline = AgenticPipeline(
-            chroma_client=chroma.collection,
+            chroma_client=chroma,
             neo4j_client=get_neo4j_client(),
             llm=llm,
         )

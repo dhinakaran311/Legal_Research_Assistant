@@ -106,6 +106,34 @@ class ChromaClient:
             logger.error(f"❌ Failed to add documents: {str(e)}")
             raise
     
+    def upsert(
+        self,
+        ids: List[str],
+        documents: List[str],
+        metadatas: List[Dict[str, Any]],
+    ) -> None:
+        """
+        Upsert documents into the collection (updates if ID exists, adds if not)
+        
+        Args:
+            ids: List of unique IDs for each document
+            documents: List of document texts
+            metadatas: List of metadata dictionaries for each document
+        """
+        if not self.collection:
+            raise RuntimeError("ChromaDB collection not initialized. Call connect() first.")
+        
+        try:
+            self.collection.upsert(
+                ids=ids,
+                documents=documents,
+                metadatas=metadatas
+            )
+            logger.info(f"✅ Upserted {len(ids)} documents")
+        except Exception as e:
+            logger.error(f"❌ Upsert failed: {str(e)}")
+            raise
+    
     def query(
         self,
         query_texts: List[str],
