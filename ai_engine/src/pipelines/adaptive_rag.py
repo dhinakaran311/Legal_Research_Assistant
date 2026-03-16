@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Optional LLM imports (lazy loaded)
 try:
-    from llm.gemini_generator import GeminiGenerator
+    from llm.ollama_generator import OllamaGenerator
     from llm.prompts import build_prompt, format_context_for_llm
     LLM_AVAILABLE = True
 except ImportError:
@@ -551,14 +551,20 @@ class AdaptiveRAGPipeline:
         return sources
     
     def _ensure_llm_generator(self) -> None:
-        """Lazy load Gemini generator"""
+        """Lazy load Ollama generator"""
         if self.llm_generator is None:
-            logger.info("Initializing Gemini generator...")
-            self.llm_generator = GeminiGenerator()
+            from llm.ollama_generator import get_ollama_generator
+            logger.info(f"Initializing Ollama generator with model {settings.OLLAMA_MODEL}...")
+            self.llm_generator = get_ollama_generator(
+                model_name=settings.OLLAMA_MODEL,
+                base_url=settings.OLLAMA_BASE_URL
+            )
             
             # Check health
             if not self.llm_generator.check_health():
-                raise Exception("Gemini health check failed")
+                logger.warning("Ollama health check failed. Make sure Ollama is running.")
+                # We don't raise exception here to allow fallback if intended, 
+                # but health check is important.
     
     def _generate_llm_answer(
         self,
@@ -566,7 +572,7 @@ class AdaptiveRAGPipeline:
         context: RetrievedContext,
         intent_analysis: IntentAnalysis
     ) -> str:
-        """Generate answer using Gemini LLM"""
+        """Generate answer using Ollama LLM"""
         self._ensure_llm_generator()
         
         # Format context for LLM
@@ -583,11 +589,11 @@ class AdaptiveRAGPipeline:
             context=context_text
         )
         
-        # Generate with Gemini
+        # Generate with Ollama
         answer = self.llm_generator.generate(
             prompt=prompt,
-            max_tokens=512,
-            temperature=0.3  # Lower temperature for factual legal answers
+            max_tokens=1024,  # Llama can handle more
+            temperature=0.3
         )
         
         return answer
