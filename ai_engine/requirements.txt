@@ -1,22 +1,47 @@
-# Core FastAPI dependencies
+# # Core FastAPI dependencies
+# fastapi==0.109.0
+# uvicorn[standard]==0.27.0
+# pydantic==2.5.3
+# pydantic-settings==2.1.0
+# python-dotenv==1.0.0
+
+# # CORS and middleware
+# python-multipart==0.0.6
+
+# # PyTorch CPU-only (much smaller, no CUDA — required for Render free tier)
+# --extra-index-url https://download.pytorch.org/whl/cpu
+# torch --index-url https://download.pytorch.org/whl/cpu
+
+# # AI/ML dependencies
+# requests==2.31.0
+# chromadb
+# sentence-transformers
+# neo4j>=5.14.0
+# redis>=5.0.0
+# google-genai>=1.0.0
+# pinecone>=5.0.0
+
+# ── Core FastAPI ──────────────────────────────────────────────────────────────
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 pydantic==2.5.3
 pydantic-settings==2.1.0
 python-dotenv==1.0.0
-
-# CORS and middleware
 python-multipart==0.0.6
 
-# PyTorch CPU-only (much smaller, no CUDA — required for Render free tier)
+# ── PyTorch CPU-only (Render free tier) ──────────────────────────────────────
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch --index-url https://download.pytorch.org/whl/cpu
 
-# AI/ML dependencies
+# ── AI / ML ───────────────────────────────────────────────────────────────────
 requests==2.31.0
 chromadb
 sentence-transformers
 neo4j>=5.14.0
 redis>=5.0.0
+
+# ── LLM providers (all optional — install only what you use) ─────────────────
+# Gemini:  pip install google-genai
+# OpenAI:  pip install openai
+# Ollama:  no extra install needed (uses requests)
 google-genai>=1.0.0
-pinecone>=5.0.0

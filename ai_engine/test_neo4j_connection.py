@@ -1,12 +1,25 @@
-from neo4j import GraphDatabase
 import os
+from neo4j import GraphDatabase
+from dotenv import load_dotenv
 
-uri = os.getenv("NEO4J_URI", "neo4j+s://6db506f2.databases.neo4j.io")
-user = os.getenv("NEO4J_USER", "neo4j")
-password = os.getenv("NEO4J_PASSWORD", "zvhdxV75jqge_cm992yU7uRqiCFQsmZtuA51r59xMmw")
+# Load environment variables from .env
+load_dotenv()
 
-driver = GraphDatabase.driver(uri, auth=(user, password))
+uri = os.getenv("NEO4J_URI")
+user = os.getenv("NEO4J_USERNAME", "neo4j")
+password = os.getenv("NEO4J_PASSWORD")
 
-with driver.session(database="neo4j") as session:
-    result = session.run("RETURN 'Connected to Neo4j AuraDB!' AS message")
-    print(result.single()["message"])
+if not uri or not password:
+    print("Error: NEO4J_URI or NEO4J_PASSWORD not found in .env")
+    exit(1)
+
+print(f"Connecting to: {uri} as {user}...")
+
+try:
+    driver = GraphDatabase.driver(uri, auth=(user, password))
+    with driver.session(database="neo4j") as session:
+        result = session.run("RETURN 'Connected to Neo4j AuraDB!' AS message")
+        print(result.single()["message"])
+    driver.close()
+except Exception as e:
+    print(f"Connection failed: {e}")

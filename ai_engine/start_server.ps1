@@ -25,4 +25,4 @@ if (Test-Path ".ven\Scripts\Activate.ps1") {
 
 # Run uvicorn
 Write-Host "Running uvicorn..."
-python -m uvicorn src.main:app --host 0.0.0.0 --port 5000 --reload
+python -m uvicorn main:app --host 0.0.0.0 --port 5000 --reload
