@@ -246,7 +246,8 @@ class PlannerAgent:
                 "factual | procedural | comparative | exploratory | "
                 "case_law | recent | general\n\n"
                 "GUIDELINES:\n"
-                "- Use 'comparative' ONLY if comparing two different things or laws (e.g., 'A vs B').\n"
+                "- Use 'recent' if the query asks for 'latest', 'new', 'amendments', or mentions recent years (2023, 2024, 2025).\n"
+                "- Use 'comparative' ONLY if specifically comparing two different laws or sections (e.g., 'A vs B').\n"
                 "- Use 'factual' for 'what is the law/punishment for X'.\n\n"
                 f"Query: {query}\nAnswer (one word only):"
             )

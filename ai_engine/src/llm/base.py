@@ -67,7 +67,7 @@ class OllamaLLM(BaseLLM):
                         "temperature": temperature,
                     },
                 },
-                timeout=180,
+                timeout=300,
             )
             resp.raise_for_status()
             return resp.json().get("response", "").strip()

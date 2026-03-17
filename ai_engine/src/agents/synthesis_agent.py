@@ -11,6 +11,7 @@ into a single coherent answer.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -92,9 +93,9 @@ class SynthesisAgent:
 
         all_docs   = _merge_and_rank(local_docs, web_docs)
         sources    = _build_sources(all_docs)
-        web_srcs   = [s for s in sources
-                      if s["metadata"].get("source") == "web"
-                      or s["metadata"].get("url")]
+        # Tag web sources correctly (docs from web RA should have metadata['source'] == 'web')
+        web_srcs   = [s for s in sources 
+                      if s.get("metadata", {}).get("source") == "web"]
         local_srcs = [s for s in sources if s not in web_srcs]
         confidence = _calc_confidence(sources, plan, bool(web_docs))
 
@@ -148,7 +149,12 @@ class SynthesisAgent:
         template = _PROMPTS.get(intent, _PROMPTS["general"])
         prompt   = template.format(question=query, context=ctx)
         try:
+            logger.info("SynthesisAgent | Calling LLM (max_tokens=700, temp=0.3)...")
+            t_start = time.perf_counter()
             answer = self.llm.generate(prompt, max_tokens=700, temperature=0.3)
+            t_elapsed = time.perf_counter() - t_start
+            logger.info("SynthesisAgent | LLM response received in %.2fs", t_elapsed)
+            
             if answer:
                 if conflict_report and conflict_report.has_conflicts:
                     answer += f"\n\n---\n{conflict_report.summary}"

@@ -25,9 +25,11 @@ _HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
+        "Chrome/122.0.0.0 Safari/537.36"
     ),
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Referer": "https://www.google.com/",
 }
 _TIMEOUT  = 12
 _MAX_DOCS = 6
@@ -82,7 +84,11 @@ class WebResearchAgent:
         self.timeout  = timeout
         self._req     = None
         self._bs4     = None
+        self._session = None
         self._load_deps()
+        if self._req:
+            self._session = self._req.Session()
+            self._session.headers.update(_HEADERS)
 
     def _load_deps(self) -> None:
         try:
@@ -118,11 +124,12 @@ class WebResearchAgent:
             logger.warning("IndianKanoon failed: %s", e)
 
         # IndiaCode — best for full statute text (skip for pure case_law)
-        if intent != "case_law" and len(results) < self.max_docs:
-            try:
-                results.extend(self._search_indiacode(query)[:3])
-            except Exception as e:
-                logger.warning("IndiaCode failed: %s", e)
+        # 404/500 frequently on direct GET, choosing to skip for now
+        # if intent != "case_law" and len(results) < self.max_docs:
+        #     try:
+        #         results.extend(self._search_indiacode(query)[:3])
+        #     except Exception as e:
+        #         logger.warning("IndiaCode failed: %s", e)
 
         # deduplicate by URL
         seen, deduped = set(), []
@@ -141,13 +148,16 @@ class WebResearchAgent:
     def _search_kanoon(self, query: str) -> List[WebResult]:
         url  = (f"https://indiankanoon.org/search/"
                 f"?formInput={quote_plus(query)}&pagenum=0")
+        logger.debug("Searching IndianKanoon: %s", url)
         html = self._get(url)
         if not html:
+            logger.warning("IndianKanoon search returned no HTML (possibly blocked or 404)")
             return []
 
         soup, out = self._bs4(html, "html.parser"), []
-        for div in soup.select("div.result")[:5]:
-            a_tag = div.select_one("a.result_title, div.result_title a, a")
+        # Update: IndianKanoon uses <article class="result">
+        for div in soup.select("article.result, div.result")[:5]:
+            a_tag = div.select_one("h4.result_title a, a.result_title, div.result_title a, a")
             if not a_tag:
                 continue
             title    = a_tag.get_text(strip=True)
@@ -156,7 +166,7 @@ class WebResearchAgent:
                         if href.startswith("/") else href)
 
             snip_tag = div.select_one(
-                "div.result_categories, p.result_snippet, div.snippet, p"
+                "div.headline, div.result_categories, p.result_snippet, div.snippet, p"
             )
             snippet = snip_tag.get_text(strip=True) if snip_tag else ""
 
@@ -190,8 +200,10 @@ class WebResearchAgent:
     def _search_indiacode(self, query: str) -> List[WebResult]:
         url  = (f"https://www.indiacode.nic.in/search"
                 f"?query={quote_plus(query)}")
+        logger.debug("Searching IndiaCode: %s", url)
         html = self._get(url)
         if not html:
+            logger.warning("IndiaCode search returned no HTML (possibly blocked or 404)")
             return []
 
         soup, out = self._bs4(html, "html.parser"), []
@@ -234,10 +246,14 @@ class WebResearchAgent:
 
     def _get(self, url: str) -> Optional[str]:
         try:
-            r = self._req.get(url, headers=_HEADERS, timeout=self.timeout)
+            if self._session:
+                r = self._session.get(url, timeout=self.timeout)
+            else:
+                r = self._req.get(url, headers=_HEADERS, timeout=self.timeout)
+            
             if r.status_code == 200:
                 return r.text
-            logger.debug("HTTP %s for %s", r.status_code, url)
+            logger.warning("HTTP %s for %s", r.status_code, url)
         except Exception as e:
-            logger.debug("GET failed %s — %s", url, e)
+            logger.error("GET failed %s — %s: %s", url, type(e).__name__, e)
         return None

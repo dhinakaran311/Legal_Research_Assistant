@@ -168,6 +168,8 @@ class AgenticPipeline:
                     "future identical queries skip web",
                     stored,
                 )
+        else:
+            logger.info("Agent3 WebResearch  | skipped (using local only)")
 
         # ── Agent 4: Conflict check ───────────────────────────────────────────
         all_docs = (

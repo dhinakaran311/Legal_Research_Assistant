@@ -38,6 +38,13 @@ interface RetrievalStrategy {
   intent_reasoning: string;
 }
 
+interface WebSource {
+  title?: string;
+  url?: string;
+  content?: string;
+  web_source?: string;
+}
+
 interface SearchResult {
   question: string;
   intent: string;
@@ -45,6 +52,7 @@ interface SearchResult {
   answer: string;
   sources: Source[];
   graph_references: GraphReference[];
+  web_sources: WebSource[];
   documents_used: number;
   retrieval_strategy: RetrievalStrategy;
   confidence: number;
@@ -294,6 +302,55 @@ export default function SearchResults({ result }: SearchResultsProps) {
                   <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
                     {ref.relationship}
                   </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Web Sources Section */}
+      {result.web_sources && result.web_sources.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-soft p-6 transition-all duration-300 hover:shadow-elevation-2 animate-slide-up" style={{ animationDelay: '250ms' }}>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+            <svg className="h-5 w-5 mr-2 text-primary-600 dark:text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+            </svg>
+            Web Research Results ({result.web_sources.length})
+          </h3>
+          <div className="space-y-4">
+            {result.web_sources.map((webSource, index) => (
+              <div
+                key={index}
+                className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 hover:border-primary-300 dark:hover:border-primary-600 transition-all duration-300 hover:shadow-md hover-lift"
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <h4 className="font-medium text-gray-900 dark:text-white">
+                    {webSource.title || 'Untitled Web Result'}
+                  </h4>
+                  {webSource.web_source && (
+                    <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded">
+                      {webSource.web_source}
+                    </span>
+                  )}
+                </div>
+                {webSource.content && (
+                  <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 mb-3">
+                    {webSource.content}
+                  </p>
+                )}
+                {webSource.url && (
+                  <a
+                    href={webSource.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-xs font-medium text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+                  >
+                    View Source
+                    <svg className="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
                 )}
               </div>
             ))}

@@ -27,6 +27,12 @@ export const SEARCH_QUERY = gql`
         related_title
         relationship
       }
+      web_sources {
+        title
+        url
+        content
+        web_source
+      }
       documents_used
       retrieval_strategy {
         num_documents_requested

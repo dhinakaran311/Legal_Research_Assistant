@@ -35,7 +35,7 @@ export async function callAIEngine(query, useLLM = false) {
                     'Content-Type': 'application/json',
                     'X-Internal-API-Key': INTERNAL_API_KEY
                 },
-                timeout: 180000 // 180 seconds (LLM can be slow)
+                timeout: 300000 // 300 seconds (LLM can be slow)
             }
         );
 
@@ -46,7 +46,7 @@ export async function callAIEngine(query, useLLM = false) {
         console.log("================== AGENT TRACE ==================");
         console.log(`🎯 Intent:     ${data.intent} (Conf: ${data.intent_confidence})`);
         console.log(`📊 Quality:    ${meta.local_quality?.toFixed(2) || 'N/A'} (Threshold: 0.40)`);
-        console.log(`📂 Sources:    ${data.num_sources_retrieved} docs retrieved`);
+        console.log(`📂 Sources:    ${data.documents_used} docs retrieved`);
         console.log(`🌐 Web:        ${meta.web_escalated ? 'YES (Escalated)' : (meta.web_forced ? 'YES (Forced)' : 'NO (Local Only)')}`);
         console.log(`⚖️  Conflicts:  ${meta.conflict_detected ? 'DETECTED' : 'NONE'}`);
         console.log(`⏱️  Time:       ${data.processing_time_ms}ms`);
