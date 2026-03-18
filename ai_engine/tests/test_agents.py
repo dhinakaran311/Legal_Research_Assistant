@@ -169,13 +169,13 @@ class TestWebResearchAgent(unittest.TestCase):
     def test_unavailable_without_deps(self):
         from agents.web_research_agent import WebResearchAgent
         a = WebResearchAgent()
-        a._req = None
+        a._bs4 = None         # simulate missing beautifulsoup4
         self.assertFalse(a.available)
 
     def test_error_bundle_when_unavailable(self):
         from agents.web_research_agent import WebResearchAgent
         a = WebResearchAgent()
-        a._req = None
+        a._bs4 = None         # simulate missing beautifulsoup4
         b = a.research("IPC 302")
         self.assertIsNotNone(b.error)
         self.assertEqual(len(b.results), 0)
@@ -341,10 +341,10 @@ class TestAgenticPipeline(unittest.TestCase):
     def test_low_quality_calls_web(self):
         ch = _chroma_mock(["weak"], [0.10])
         pl = self._pipeline(ch)
-        with patch.object(pl.web_ra, "research",
-                          return_value=_web_bundle(2)) as mock_web:
-            result = pl.run("What is IPC 302?")
-        mock_web.assert_called_once()
+        async def _fake_web_async(query, intent="general"):
+            return _web_bundle(2)
+        pl.web_ra.research_async = _fake_web_async
+        result = pl.run("What is IPC 302?")
         self.assertTrue(result.metadata["web_escalated"])
 
     # ── ★ 8. web → DB storage ─────────────────────────────────────────────────
@@ -352,8 +352,10 @@ class TestAgenticPipeline(unittest.TestCase):
         ch = _chroma_mock(["weak"], [0.05])
         pl = self._pipeline(ch)
         wb = _web_bundle(2, "bail under IPC")
-        with patch.object(pl.web_ra, "research", return_value=wb):
-            pl.run("Latest bail law IPC")
+        async def _fake_web_async(query, intent="general"):
+            return wb
+        pl.web_ra.research_async = _fake_web_async
+        pl.run("Latest bail law IPC")
 
         ch.upsert.assert_called_once()
         kw = ch.upsert.call_args.kwargs
@@ -392,10 +394,10 @@ class TestAgenticPipeline(unittest.TestCase):
             "agents.web_research_agent",
             fromlist=["WebResearchBundle"]
         ).WebResearchBundle(query="q", results=[])
-        with patch.object(pl.web_ra, "research",
-                          return_value=empty_wb) as mock_web:
-            result = pl.run("Latest GST amendment 2024")
-        mock_web.assert_called_once()
+        async def _fake_web_async(query, intent="general"):
+            return empty_wb
+        pl.web_ra.research_async = _fake_web_async
+        result = pl.run("Latest GST amendment 2024")
         self.assertTrue(result.metadata["web_forced"])
 
     # ── 11. end-to-end smoke ──────────────────────────────────────────────────

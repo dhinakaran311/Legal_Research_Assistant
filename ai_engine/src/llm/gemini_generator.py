@@ -1,9 +1,10 @@
 """
-Google Gemini LLM Generator
-Handles communication with Google Gemini API for answer generation
-Uses the new google-genai SDK
+Google Gemini LLM Generator  (P0-fix — thread-safe singleton + try_refresh)
+Handles communication with Google Gemini API for answer generation.
+Uses the new google-genai SDK (google-genai >= 1.0.0).
 """
 import logging
+import threading
 import time
 from typing import Optional, Dict, Any
 
@@ -36,20 +37,34 @@ class GeminiGenerator:
         self.model_name = model_name or settings.GEMINI_MODEL
         self.timeout = timeout
         self._client = None
-        
+        self._lock = threading.Lock()   # thread-safe lazy init
+
         if not self.api_key:
             raise ValueError(
                 "GEMINI_API_KEY not set. Add it to your .env file or pass it directly."
             )
-        
+
         logger.info(f"GeminiGenerator initialized with model: {self.model_name}")
     
     def _get_client(self):
-        """Lazy-load the Gemini client"""
-        if self._client is None:
-            from google import genai
-            self._client = genai.Client(api_key=self.api_key)
+        """Thread-safe lazy-load of the Gemini client."""
+        with self._lock:
+            if self._client is None:
+                from google import genai
+                self._client = genai.Client(api_key=self.api_key)
         return self._client
+
+    def try_refresh(self) -> None:
+        """
+        Hot-rotate the API key without restarting the service.
+        Update GEMINI_API_KEY in the environment then call this.
+        """
+        import os
+        new_key = os.getenv("GEMINI_API_KEY", self.api_key)
+        with self._lock:
+            self.api_key = new_key
+            self._client = None    # force re-init on next call
+        logger.info("GeminiGenerator: client refreshed (key rotated)")
     
     def check_health(self) -> bool:
         """
@@ -198,8 +213,9 @@ class GeminiGenerator:
         }
 
 
-# Singleton instance
+# Thread-safe singleton
 _gemini_instance: Optional[GeminiGenerator] = None
+_gemini_lock = threading.Lock()
 
 
 def get_gemini_generator(
@@ -207,11 +223,14 @@ def get_gemini_generator(
     api_key: Optional[str] = None
 ) -> GeminiGenerator:
     """
-    Get or create singleton Gemini generator
+    Get or create thread-safe singleton Gemini generator.
     """
     global _gemini_instance
-    
-    if _gemini_instance is None:
-        _gemini_instance = GeminiGenerator(model_name=model_name, api_key=api_key)
-    
+    if _gemini_instance is not None:
+        return _gemini_instance
+    with _gemini_lock:
+        if _gemini_instance is None:   # double-checked locking
+            _gemini_instance = GeminiGenerator(
+                model_name=model_name, api_key=api_key
+            )
     return _gemini_instance

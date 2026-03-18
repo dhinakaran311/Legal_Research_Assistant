@@ -41,7 +41,13 @@ neo4j>=5.14.0
 redis>=5.0.0
 
 # ── LLM providers (all optional — install only what you use) ─────────────────
-# Gemini:  pip install google-genai
+# Gemini:  pip install google-genai   (already in requirements)
 # OpenAI:  pip install openai
 # Ollama:  no extra install needed (uses requests)
 google-genai>=1.0.0
+
+# ── P0 fixes ─────────────────────────────────────────────────────────────────
+# Retry with exponential back-off (LLM 429/503 handling)
+tenacity>=8.2.3
+# Async HTTP client (replaces synchronous requests in WebResearchAgent)
+httpx>=0.27.0

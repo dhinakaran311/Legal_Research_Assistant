@@ -1,201 +1,138 @@
 """
-Query routes for AI Engine
-Handles legal question processing and retrieval
+routes/query.py  —  P0-FIX-3: /api/query now uses AgenticPipeline
+──────────────────────────────────────────────────────────────────────
+Old implementation used Pinecone + rule-based answer generation.
+New implementation delegates to the shared AgenticPipeline (ChromaDB).
+
+Both /api/query and /api/adaptive-query now:
+  • use the SAME AgenticPipeline instance (via pipeline_factory)
+  • use the SAME ChromaDB vector store
+  • benefit from the self-learning web → ChromaDB storage loop
+
+/api/status now reports ChromaDB doc count instead of Pinecone.
 """
+
+from __future__ import annotations
+
+import logging
+import time
+from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any, List, Optional
-import time
-import logging
-
-from vectorstore.chroma_client import get_chroma_client
-from embeddings.embedder import get_embedder
-from config import settings
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/api", tags=["query"])
 
 
+# ── Request / Response models ─────────────────────────────────────────────────
+
 class QueryRequest(BaseModel):
-    """Request model for legal queries"""
-    question: str
-    max_results: Optional[int] = 5
+    """Request model for legal queries."""
+    question:      str
+    max_results:   Optional[int]  = 5
     include_graph: Optional[bool] = True
-
-
-class Source(BaseModel):
-    """Source document model"""
-    id: str
-    title: str
-    excerpt: str
-    relevance_score: float
-    metadata: Dict[str, Any]
+    use_llm:       Optional[bool] = False
 
 
 class QueryResponse(BaseModel):
-    """Response model for legal queries"""
-    question: str
-    answer: str
-    sources: List[Source]
-    confidence: float
-    processing_time_ms: float
+    """Response model — compatible with the existing GraphQL resolver."""
+    question:            str
+    answer:              str
+    sources:             List[Dict[str, Any]]
+    confidence:          float
+    processing_time_ms:  float
+    # Extended fields (same as /api/adaptive-query so GraphQL can evolve)
+    intent:              Optional[str]             = None
+    intent_confidence:   Optional[float]           = None
+    graph_references:    Optional[List[Dict]]      = None
+    web_sources:         Optional[List[Dict]]      = None
+    documents_used:      Optional[int]             = None
+    retrieval_strategy:  Optional[Dict[str, Any]]  = None
+    metadata:            Optional[Dict[str, Any]]  = None
 
+
+# ── Route handlers ────────────────────────────────────────────────────────────
 
 @router.post("/query", response_model=QueryResponse)
 async def process_query(request: QueryRequest) -> QueryResponse:
     """
-    Process a legal query and return relevant information
-    
-    Args:
-        request: QueryRequest containing the legal question
-        
-    Returns:
-        QueryResponse with answer, sources, and metadata
+    Process a legal query via the unified AgenticPipeline.
+    Routes: intent → local ChromaDB → (web escalation if needed) → synthesis.
     """
-    start_time = time.time()
-    
+    logger.info("POST /api/query | question='%s'", request.question[:80])
+
+    from pipeline_factory import get_pipeline
+
     try:
-        logger.info(f"Processing query: {request.question}")
-        
-        # Initialize Pinecone client
-        from vectorstore.pinecone_client import PineconeClient
-        pinecone_client = PineconeClient(
-            api_key=settings.PINECONE_API_KEY,
-            index_name=settings.PINECONE_INDEX_NAME,
-            namespace=settings.PINECONE_NAMESPACE
-        )
-        pinecone_client.connect()
-        
-        # Check if collection has documents
-        doc_count = pinecone_client.count()
-        if doc_count == 0:
-            logger.warning("Pinecone index is empty")
-            raise HTTPException(
-                status_code=503,
-                detail="Knowledge base is empty. Please load legal documents first."
-            )
-        
-        logger.info(f"Searching in collection with {doc_count} documents")
-        
-        # Perform semantic search
-        results = pinecone_client.query(
-            query_texts=[request.question],
-            n_results=min(request.max_results, 10)  # Cap at 10 results
-        )
-        
-        # Process results into sources
-        sources = []
-        if results['ids'][0]:
-            for i, (doc_id, document, metadata, distance) in enumerate(zip(
-                results['ids'][0],
-                results['documents'][0],
-                results['metadatas'][0],
-                results['distances'][0]
-            )):
-                # Extract title from document (first line)
-                title = document.split('\n')[0] if '\n' in document else doc_id
-                
-                # Create excerpt (first 200 chars of content)
-                excerpt = document[:200] + "..." if len(document) > 200 else document
-                
-                # Convert distance to relevance score (0-1, higher is better)
-                # ChromaDB uses L2 distance, so smaller is better
-                # We convert to similarity score
-                relevance_score = max(0.0, 1.0 - (distance / 2.0))
-                
-                sources.append(Source(
-                    id=doc_id,
-                    title=title,
-                    excerpt=excerpt,
-                    relevance_score=round(relevance_score, 4),
-                    metadata=metadata
-                ))
-                
-                logger.info(f"Result {i+1}: {doc_id} (relevance: {relevance_score:.4f})")
-        
-        # Calculate confidence based on top result's relevance
-        confidence = sources[0].relevance_score if sources else 0.0
-        
-        # Generate answer based on top sources
-        if sources:
-            top_source = sources[0]
-            answer = f"Based on {top_source.metadata.get('source', 'legal documents')}, "
-            
-            # Extract key information from top result
-            if 'section' in top_source.metadata:
-                answer += f"Section {top_source.metadata['section']}: "
-            
-            # Use the excerpt as the answer
-            answer += top_source.excerpt
-            
-            # Add reference to other relevant sources
-            if len(sources) > 1:
-                answer += f"\n\nAdditional relevant provisions found in {len(sources)-1} other document(s)."
-        else:
-            answer = "No relevant legal provisions found for your query. Please try rephrasing your question."
-            confidence = 0.0
-        
-        # Calculate processing time
-        processing_time = (time.time() - start_time) * 1000  # Convert to ms
-        
-        logger.info(f"Query processed in {processing_time:.2f}ms with confidence {confidence:.4f}")
-        
+        pipeline = get_pipeline(use_llm=bool(request.use_llm))
+        result   = await pipeline.run_async(request.question)
+
         return QueryResponse(
-            question=request.question,
-            answer=answer,
-            sources=sources,
-            confidence=round(confidence, 4),
-            processing_time_ms=round(processing_time, 2)
+            question           = result.question,
+            answer             = result.answer,
+            sources            = result.sources,
+            confidence         = result.confidence,
+            processing_time_ms = result.processing_time_ms,
+            intent             = result.intent,
+            intent_confidence  = result.intent_confidence,
+            graph_references   = result.graph_references,
+            web_sources        = result.web_sources,
+            documents_used     = result.num_sources_retrieved,
+            retrieval_strategy = result.retrieval_strategy,
+            metadata           = result.metadata,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error processing query: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to process query: {str(e)}"
-        )
+        logger.error("Error in /api/query: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/status")
 async def get_status() -> Dict[str, Any]:
     """
-    Get the current status of the AI engine
-    
-    Returns:
-        Status information including available models and database connections
+    AI engine status — reports ChromaDB document count (Pinecone removed).
     """
+    from pipeline_factory import get_pipeline
+    from config import settings
+
     try:
-        # Check Pinecone status
-        from vectorstore.pinecone_client import PineconeClient
-        pinecone_client = PineconeClient(
-            api_key=settings.PINECONE_API_KEY,
-            index_name=settings.PINECONE_INDEX_NAME,
-            namespace=settings.PINECONE_NAMESPACE
-        )
-        pinecone_client.connect()
-        doc_count = pinecone_client.count()
-        vectordb_status = "operational"
-        
+        pipeline   = get_pipeline()
+        doc_count  = pipeline.chroma.count() if pipeline.chroma else 0
+        vec_status = "operational"
     except Exception as e:
-        logger.error(f"Pinecone error: {str(e)}")
-        doc_count = 0
-        vectordb_status = "error"
-    
+        logger.error("ChromaDB status check failed: %s", e)
+        doc_count  = 0
+        vec_status = "error"
+
     return {
-        "status": "operational",
-        "version": "2.2.0",
+        "status":  "operational",
+        "version": "3.0.0",
         "modules": {
-            "vectordb": vectordb_status,
-            "graphdb": "pending",
-            "llm": "pending"
+            "vectordb": vec_status,
+            "graphdb":  "operational",
+            "llm":      "configured",
         },
         "database": {
-            "chroma_documents": doc_count,
-            "collection": settings.CHROMA_COLLECTION_NAME
+            "chromadb_documents": doc_count,
+            "collection":         settings.CHROMA_COLLECTION_NAME,
+            # Pinecone sync: not yet enabled (future)
+            "pinecone_sync":      "not_configured",
         },
-        "message": f"AI Engine operational with {doc_count} legal documents indexed."
+        "pipeline": {
+            "type":   "AgenticPipeline",
+            "agents": [
+                "PlannerAgent",
+                "LocalResearchAgent",
+                "WebResearchAgent",
+                "ConflictCheckerAgent",
+                "SynthesisAgent",
+            ],
+        },
+        "message": (
+            f"AI Engine operational with {doc_count} "
+            "legal documents in ChromaDB."
+        ),
     }
-

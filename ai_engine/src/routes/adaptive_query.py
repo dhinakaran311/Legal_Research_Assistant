@@ -1,7 +1,10 @@
 """
-routes/adaptive_query.py
-FastAPI route — wires HTTP requests into the 5-agent AgenticPipeline.
+routes/adaptive_query.py  —  P0-FIX-3 update
+──────────────────────────────────────────────
+Now uses the shared pipeline_factory so /api/adaptive-query and /api/query
+both serve from the SAME AgenticPipeline instance and ChromaDB collection.
 """
+
 from __future__ import annotations
 
 import logging
@@ -10,39 +13,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from agents.agentic_pipeline import AgenticPipeline
-from config import settings
-
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["adaptive-query"])
-
-_pipeline: Optional[AgenticPipeline] = None
-
-
-def _get_pipeline(use_llm: bool = False) -> AgenticPipeline:
-    global _pipeline
-    if _pipeline is None:
-        from vectorstore.chroma_client import ChromaClient
-        from graph.neo4j_client import get_neo4j_client
-
-        chroma = ChromaClient(
-            persist_directory=settings.CHROMA_DB_PATH,
-            collection_name=settings.CHROMA_COLLECTION_NAME,
-            embedding_model=settings.MODEL_NAME,
-        )
-        chroma.connect()
-
-        llm = None
-        if use_llm:
-            from llm.base import get_llm
-            llm = get_llm()
-
-        _pipeline = AgenticPipeline(
-            chroma_client=chroma,
-            neo4j_client=get_neo4j_client(),
-            llm=llm,
-        )
-    return _pipeline
 
 
 class AdaptiveQueryRequest(BaseModel):
@@ -67,9 +39,16 @@ class AdaptiveQueryResponse(BaseModel):
 
 @router.post("/adaptive-query", response_model=AdaptiveQueryResponse)
 async def adaptive_query(request: AdaptiveQueryRequest):
+    """
+    Full 5-agent agentic pipeline endpoint.
+    Uses the shared AgenticPipeline singleton from pipeline_factory.
+    """
+    logger.info("POST /api/adaptive-query | question='%s'", request.question[:80])
     try:
-        pipeline = _get_pipeline(use_llm=bool(request.use_llm))
-        result   = pipeline.run(request.question)
+        from pipeline_factory import get_pipeline
+        pipeline = get_pipeline(use_llm=bool(request.use_llm))
+        result   = await pipeline.run_async(request.question)
+
         return AdaptiveQueryResponse(
             question           = result.question,
             intent             = result.intent,
@@ -91,8 +70,10 @@ async def adaptive_query(request: AdaptiveQueryRequest):
 
 @router.get("/adaptive-status")
 async def adaptive_status() -> Dict[str, Any]:
+    """Pipeline status endpoint."""
     try:
-        pipeline = _get_pipeline()
+        from pipeline_factory import get_pipeline
+        pipeline = get_pipeline()
         return {
             "status":  "operational",
             "version": "4.0.0",
@@ -106,6 +87,8 @@ async def adaptive_status() -> Dict[str, Any]:
                 ],
                 "web_to_db_loop":   True,
                 "quality_threshold": pipeline.quality_threshold,
+                "vector_store":      "ChromaDB (single source of truth)",
+                "pinecone_sync":     "future — see pipeline_factory.py",
             },
         }
     except Exception as e:

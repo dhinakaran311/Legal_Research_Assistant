@@ -48,6 +48,7 @@ FLOW
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import time
@@ -121,6 +122,30 @@ class AgenticPipeline:
     # ── public API ────────────────────────────────────────────────────────────
 
     def run(self, query: str) -> PipelineResult:
+        """
+        Sync entry-point — kept for backward compatibility (tests, CLI).
+        Internally delegates to run_async().
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            # Already inside an event loop (e.g. pytest-asyncio):
+            # run in a fresh thread to avoid 'cannot run nested event loop'
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+                future = ex.submit(asyncio.run, self.run_async(query))
+                return future.result()
+        else:
+            return asyncio.run(self.run_async(query))
+
+    async def run_async(self, query: str) -> PipelineResult:
+        """
+        Async entry-point — use from FastAPI async routes.
+        Web research is fully non-blocking (httpx + asyncio.gather internally).
+        """
         t0 = time.perf_counter()
         logger.info("═" * 60)
         logger.info("Pipeline START | query='%s'", query[:80])
@@ -138,9 +163,6 @@ class AgenticPipeline:
                     local_bundle.is_sufficient)
 
         # ── Routing decision ──────────────────────────────────────────────────
-        #   Go to web if:
-        #     a) planner forced it (recent / case_law intent)
-        #     b) local quality is below threshold
         need_web = plan.use_web or not local_bundle.is_sufficient
         if not plan.use_web and not local_bundle.is_sufficient:
             plan.escalate_to_web = True
@@ -153,10 +175,13 @@ class AgenticPipeline:
         else:
             logger.info("Routing → LOCAL  (quality sufficient)")
 
-        # ── Agent 3: Web search + store to ChromaDB ───────────────────────────
+        # ── Agent 3: Web search + ChromaDB store (ASYNC — non-blocking) ───────
         web_bundle: WebResearchBundle = WebResearchBundle(query=query)
         if need_web:
-            web_bundle = self.web_ra.research(query, intent=plan.intent)
+            # ★ Awaited — does NOT block the uvicorn worker thread
+            web_bundle = await self.web_ra.research_async(
+                query, intent=plan.intent
+            )
             logger.info("Agent3 WebResearch  | results=%d error=%s",
                         len(web_bundle.results), web_bundle.error)
 
