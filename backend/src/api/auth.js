@@ -72,4 +72,47 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// Google Login
+router.post("/google", async (req, res) => {
+  try {
+    const { name, email, profile_picture } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    // Check if user already exists
+    let user = await prisma.user.findUnique({ where: { email } });
+
+    if (user) {
+      // Update profile picture if it changed
+      if (profile_picture && user.profile_picture !== profile_picture) {
+        user = await prisma.user.update({
+          where: { email },
+          data: { profile_picture },
+        });
+      }
+    } else {
+      // Create new user (no password needed for Google auth)
+      user = await prisma.user.create({
+        data: {
+          name: name || email.split("@")[0],
+          email,
+          profile_picture: profile_picture || null,
+          role: "USER",
+        },
+      });
+    }
+
+    // Remove password from response
+    const { password: _, ...userWithoutPassword } = user;
+
+    const token = generateToken(user.id);
+    res.json({ user: userWithoutPassword, token });
+  } catch (error) {
+    console.error("Google login error:", error);
+    res.status(500).json({ message: "Server error during Google login" });
+  }
+});
+
 export default router;
