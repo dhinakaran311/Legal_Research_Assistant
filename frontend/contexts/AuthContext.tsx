@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import Cookies from 'js-cookie';
 import { authAPI } from '@/lib/api';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
 
 interface User {
@@ -40,8 +40,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (savedToken && savedUser) {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
+      setLoading(false);
+    } else {
+      // Check for redirect result (fallback from popup-blocked)
+      getRedirectResult(auth)
+        .then(async (result) => {
+          if (result?.user) {
+            const firebaseUser = result.user;
+            if (firebaseUser.email) {
+              const response = await authAPI.googleLogin(
+                firebaseUser.displayName || '',
+                firebaseUser.email,
+                firebaseUser.photoURL || ''
+              );
+              const { user: userData, token: newToken } = response;
+              setUser(userData);
+              setToken(newToken);
+              Cookies.set('token', newToken, { expires: 7 });
+              Cookies.set('user', JSON.stringify(userData), { expires: 7 });
+            }
+          }
+        })
+        .catch((err) => console.error('Redirect result error:', err))
+        .finally(() => setLoading(false));
     }
-    setLoading(false);
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -63,7 +85,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loginWithGoogle = async () => {
     try {
       setLoading(true);
-      const result = await signInWithPopup(auth, googleProvider);
+      let result;
+      try {
+        result = await signInWithPopup(auth, googleProvider);
+      } catch (popupError: any) {
+        // If popup is blocked or cancelled, fall back to redirect
+        if (popupError.code === 'auth/popup-blocked') {
+          await signInWithRedirect(auth, googleProvider);
+          return; // Will be handled by getRedirectResult on page reload
+        }
+        if (popupError.code === 'auth/cancelled-popup-request') {
+          // User opened multiple popups; ignore this harmless error
+          return;
+        }
+        throw popupError;
+      }
+
       const firebaseUser = result.user;
 
       if (!firebaseUser.email) {
