@@ -8,6 +8,7 @@ interface HeaderProps {
     user?: {
         name: string;
         email: string;
+        profile_picture?: string;
     } | null;
     onLogout?: () => void;
     showAuth?: boolean;
@@ -60,13 +61,25 @@ export default function Header({ user, onLogout, showAuth = true }: HeaderProps)
                         {/* User Menu */}
                         {showAuth && user && (
                             <>
-                                <div className="hidden sm:block text-right">
-                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                        {user.name}
-                                    </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        {user.email}
-                                    </p>
+                                <div className="hidden sm:flex items-center space-x-3 text-right">
+                                    <div className="flex flex-col">
+                                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            {user.name}
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {user.email}
+                                        </p>
+                                    </div>
+                                    {user.profile_picture && (
+                                        <div className="relative h-10 w-10 rounded-full overflow-hidden border-2 border-primary-500 shadow-sm">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img 
+                                                src={user.profile_picture} 
+                                                alt={user.name} 
+                                                className="h-full w-full object-cover"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                                 <button
                                     onClick={onLogout}

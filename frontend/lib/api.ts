@@ -38,6 +38,15 @@ export const authAPI = {
     return response.data;
   },
 
+  googleLogin: async (name: string, email: string, profile_picture: string) => {
+    const response = await api.post('/api/auth/google', {
+      name,
+      email,
+      profile_picture,
+    });
+    return response.data;
+  },
+
   logout: () => {
     Cookies.remove('token');
     Cookies.remove('user');
