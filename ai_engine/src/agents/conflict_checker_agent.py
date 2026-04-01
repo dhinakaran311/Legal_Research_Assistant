@@ -44,8 +44,8 @@ class ConflictCheckerAgent:
 
     def check(self, query: str,
               documents: List[Dict[str, Any]]) -> ConflictReport:
-        # Filter out noise docs (threshold matches SynthesisAgent)
-        relevant_docs = [d for d in documents if d.get("relevance_score", 0) >= 0.65]
+        # Filter out noise docs — use same threshold as SynthesisAgent
+        relevant_docs = [d for d in documents if d.get("relevance_score", 0) >= 0.40]
         
         if not relevant_docs or len(relevant_docs) < 2:
             return ConflictReport()

@@ -52,16 +52,17 @@ import asyncio
 import hashlib
 import logging
 import time
+import math
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from agents.planner_agent          import PlannerAgent, Plan
-from agents.local_research_agent   import LocalResearchAgent, LocalResearchBundle
-from agents.web_research_agent     import WebResearchAgent,   WebResearchBundle
-from agents.conflict_checker_agent import ConflictCheckerAgent, ConflictReport
-from agents.synthesis_agent        import SynthesisAgent, SynthesisOutput
+from src.agents.planner_agent import PlannerAgent, Plan
+from src.agents.local_research_agent import LocalResearchAgent, LocalResearchBundle
+from src.agents.web_research_agent import WebResearchAgent, WebResearchBundle
+from src.agents.conflict_checker_agent import ConflictCheckerAgent, ConflictReport
+from src.agents.synthesis_agent import SynthesisAgent, SynthesisOutput
 
 logger = logging.getLogger(__name__)
 
@@ -123,23 +124,29 @@ class AgenticPipeline:
 
     def run(self, query: str) -> PipelineResult:
         """
-        Sync entry-point — kept for backward compatibility (tests, CLI).
-        Internally delegates to run_async().
+        Sync entry-point — delegates to async pipeline safely.
+        Handles both normal execution and already-running event loops.
         """
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
 
+        # If already inside an event loop (e.g., FastAPI, pytest)
         if loop and loop.is_running():
-            # Already inside an event loop (e.g. pytest-asyncio):
-            # run in a fresh thread to avoid 'cannot run nested event loop'
             import concurrent.futures
+
+            def _run():
+                return asyncio.run(self.run_async(query))
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                future = ex.submit(asyncio.run, self.run_async(query))
-                return future.result()
-        else:
-            return asyncio.run(self.run_async(query))
+                future = ex.submit(_run)
+                result = future.result()
+                return result
+
+        # Normal case (no running loop)
+        result = asyncio.run(self.run_async(query))
+        return result
 
     async def run_async(self, query: str) -> PipelineResult:
         """
@@ -176,7 +183,7 @@ class AgenticPipeline:
             logger.info("Routing → LOCAL  (quality sufficient)")
 
         # ── Agent 3: Web search + ChromaDB store (ASYNC — non-blocking) ───────
-        web_bundle: WebResearchBundle = WebResearchBundle(query=query)
+        web_bundle = WebResearchBundle(query=query) if hasattr(WebResearchBundle, "__init__") else None
         if need_web:
             # ★ Awaited — does NOT block the uvicorn worker thread
             web_bundle = await self.web_ra.research_async(
@@ -186,7 +193,7 @@ class AgenticPipeline:
                         len(web_bundle.results), web_bundle.error)
 
             # ★ KEY STEP — store web results into ChromaDB
-            if web_bundle.results and self.chroma:
+            if web_bundle and web_bundle.results and self.chroma is not None:
                 stored = self._store_web_to_chroma(web_bundle, plan)
                 logger.info(
                     "ChromaDB STORE     | %d web docs stored → "
@@ -220,11 +227,11 @@ class AgenticPipeline:
                     output.confidence, output.used_llm)
 
         # ── Build result ──────────────────────────────────────────────────────
-        elapsed_ms = round((time.perf_counter() - t0) * 1000, 1)
+        elapsed_ms = float(round((time.perf_counter() - t0) * 1000, 1))
         logger.info("Pipeline END | %.1f ms", elapsed_ms)
         logger.info("═" * 60)
 
-        return PipelineResult(
+        result = PipelineResult(
             question              = query,
             intent                = plan.intent,
             intent_confidence     = _intent_confidence(plan),
@@ -247,6 +254,7 @@ class AgenticPipeline:
                 "web_forced":          plan.use_web,
             },
         )
+        return result
 
     # ── ChromaDB storage ──────────────────────────────────────────────────────
 

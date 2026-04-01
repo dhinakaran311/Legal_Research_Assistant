@@ -41,6 +41,20 @@ export default function Header({ user, onLogout, showAuth = true }: HeaderProps)
                     </Link>
 
                     <div className="flex items-center space-x-3">
+                        {/* Nav links */}
+                        {user && (
+                            <nav className="hidden sm:flex items-center space-x-1">
+                                <Link href="/search"
+                                    className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-all">
+                                    Search
+                                </Link>
+                                <Link href="/chat"
+                                    className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-all flex items-center gap-1">
+                                    <span>💬</span> Chat
+                                </Link>
+                            </nav>
+                        )}
+
                         {/* Theme Toggle */}
                         <button
                             onClick={toggleTheme}

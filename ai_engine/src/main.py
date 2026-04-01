@@ -9,6 +9,8 @@ import logging
 
 from config import settings
 from routes import query
+from routes import adaptive_query
+from routes import chat as chat_route
 from middleware import verify_internal_api_key
 
 # Configure logging
@@ -28,6 +30,14 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 AI Engine starting up...")
     logger.info(f"Environment: {'Development' if settings.DEBUG else 'Production'}")
     logger.info(f"Running on {settings.API_HOST}:{settings.API_PORT}")
+
+    # Pre-warm the conversation graph
+    try:
+        from pipeline_factory import get_conversation_graph
+        get_conversation_graph()
+        logger.info("✅ ConversationGraph pre-warmed")
+    except Exception as e:
+        logger.warning("ConversationGraph pre-warm failed: %s", e)
     
     yield
     
@@ -58,10 +68,10 @@ app.middleware("http")(verify_internal_api_key)
 
 # Include routers
 app.include_router(query.router)
-
-# Import adaptive query router
-from routes import adaptive_query
 app.include_router(adaptive_query.router)
+app.include_router(chat_route.router, prefix="/api", tags=["chat"])
+
+# Remove old duplicate import
 
 
 @app.get("/")
@@ -69,9 +79,10 @@ async def root():
     """Root endpoint"""
     return {
         "message": "Legal AI Engine",
-        "version": "2.1.0",
+        "version": "3.0.0",
         "status": "operational",
-        "docs": "/docs"
+        "docs": "/docs",
+        "features": ["adaptive-rag", "conversational-chat", "crewai", "langgraph"]
     }
 
 

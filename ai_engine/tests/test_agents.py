@@ -23,12 +23,12 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 # ── stub graph module so imports don't fail ───────────────────────────────────
-_gq = types.ModuleType("graph.graph_queries")
+_gq = types.ModuleType("src.graph.graph_queries")
 _gq.fetch_legal_graph_facts = lambda q, d: []
-_g  = types.ModuleType("graph")
+_g  = types.ModuleType("src.graph")
 _g.graph_queries = _gq
-sys.modules.setdefault("graph",               _g)
-sys.modules.setdefault("graph.graph_queries", _gq)
+sys.modules.setdefault("src.graph",               _g)
+sys.modules.setdefault("src.graph.graph_queries", _gq)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ def _chroma_mock(docs, relevances):
 
 
 def _web_bundle(n=2, query="q"):
-    from agents.web_research_agent import WebResult, WebResearchBundle
+    from src.agents.web_research_agent import WebResult, WebResearchBundle
     results = [
         WebResult(
             title=f"Case {i}",
@@ -73,7 +73,7 @@ def _web_bundle(n=2, query="q"):
 class TestPlannerAgent(unittest.TestCase):
 
     def setUp(self):
-        from agents.planner_agent import PlannerAgent
+        from src.agents.planner_agent import PlannerAgent
         self.pl = PlannerAgent()
 
     def test_factual_intent(self):
@@ -121,24 +121,24 @@ class TestPlannerAgent(unittest.TestCase):
 class TestLocalResearchAgent(unittest.TestCase):
 
     def _plan(self, q="What is theft?"):
-        from agents.planner_agent import PlannerAgent
+        from src.agents.planner_agent import PlannerAgent
         return PlannerAgent().plan(q)
 
     def test_high_quality_is_sufficient(self):
-        from agents.local_research_agent import LocalResearchAgent
+        from src.agents.local_research_agent import LocalResearchAgent
         ch     = _chroma_mock(["d1", "d2", "d3"], [0.9, 0.85, 0.80])
         bundle = LocalResearchAgent(chroma_client=ch).research(self._plan())
         self.assertGreaterEqual(bundle.quality_score, 0.40)
         self.assertTrue(bundle.is_sufficient)
 
     def test_low_quality_not_sufficient(self):
-        from agents.local_research_agent import LocalResearchAgent
+        from src.agents.local_research_agent import LocalResearchAgent
         ch     = _chroma_mock(["d1"], [0.20])
         bundle = LocalResearchAgent(chroma_client=ch).research(self._plan())
         self.assertFalse(bundle.is_sufficient)
 
     def test_empty_results_not_sufficient(self):
-        from agents.local_research_agent import LocalResearchAgent
+        from src.agents.local_research_agent import LocalResearchAgent
         ch = MagicMock()
         ch.query.return_value = {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
         bundle = LocalResearchAgent(chroma_client=ch).research(self._plan())
@@ -146,12 +146,12 @@ class TestLocalResearchAgent(unittest.TestCase):
         self.assertFalse(bundle.is_sufficient)
 
     def test_no_chroma_returns_empty(self):
-        from agents.local_research_agent import LocalResearchAgent
+        from src.agents.local_research_agent import LocalResearchAgent
         bundle = LocalResearchAgent(chroma_client=None).research(self._plan())
         self.assertEqual(len(bundle.all_documents), 0)
 
     def test_deduplication(self):
-        from agents.local_research_agent import LocalResearchAgent
+        from src.agents.local_research_agent import LocalResearchAgent
         ch     = _chroma_mock(["doc"], [0.8])
         agent  = LocalResearchAgent(chroma_client=ch)
         plan   = self._plan("Compare bail under IPC and CrPC")
@@ -167,13 +167,13 @@ class TestLocalResearchAgent(unittest.TestCase):
 class TestWebResearchAgent(unittest.TestCase):
 
     def test_unavailable_without_deps(self):
-        from agents.web_research_agent import WebResearchAgent
+        from src.agents.web_research_agent import WebResearchAgent
         a = WebResearchAgent()
         a._bs4 = None         # simulate missing beautifulsoup4
         self.assertFalse(a.available)
 
     def test_error_bundle_when_unavailable(self):
-        from agents.web_research_agent import WebResearchAgent
+        from src.agents.web_research_agent import WebResearchAgent
         a = WebResearchAgent()
         a._bs4 = None         # simulate missing beautifulsoup4
         b = a.research("IPC 302")
@@ -181,7 +181,7 @@ class TestWebResearchAgent(unittest.TestCase):
         self.assertEqual(len(b.results), 0)
 
     def test_as_documents_shape(self):
-        from agents.web_research_agent import WebResult, WebResearchBundle
+        from src.agents.web_research_agent import WebResult, WebResearchBundle
         r = WebResult("T", "https://indiankanoon.org/1",
                       "content " * 60, "indiankanoon", 0.75)
         docs = WebResearchBundle(query="q", results=[r]).as_documents
@@ -205,7 +205,7 @@ class TestWebResearchAgent(unittest.TestCase):
 class TestConflictCheckerAgent(unittest.TestCase):
 
     def setUp(self):
-        from agents.conflict_checker_agent import ConflictCheckerAgent
+        from src.agents.conflict_checker_agent import ConflictCheckerAgent
         self.agent = ConflictCheckerAgent()
 
     def _doc(self, act, text):
@@ -249,9 +249,9 @@ class TestConflictCheckerAgent(unittest.TestCase):
 class TestSynthesisAgent(unittest.TestCase):
 
     def setUp(self):
-        from agents.synthesis_agent        import SynthesisAgent
-        from agents.conflict_checker_agent import ConflictReport
-        from agents.planner_agent          import PlannerAgent
+        from src.agents.synthesis_agent        import SynthesisAgent
+        from src.agents.conflict_checker_agent import ConflictReport
+        from src.agents.planner_agent          import PlannerAgent
         self.SA      = SynthesisAgent
         self.Report  = ConflictReport
         self.planner = PlannerAgent()
@@ -283,7 +283,7 @@ class TestSynthesisAgent(unittest.TestCase):
         self.assertIn("No relevant", output.answer)
 
     def test_conflict_appended(self):
-        from agents.conflict_checker_agent import ConflictReport, Conflict
+        from src.agents.conflict_checker_agent import ConflictReport, Conflict
         plan   = self.planner.plan("Compare IPC bail vs CrPC bail")
         report = ConflictReport(
             conflicts=[Conflict("contradiction", "IPC", "CrPC",
@@ -325,7 +325,7 @@ class TestSynthesisAgent(unittest.TestCase):
 class TestAgenticPipeline(unittest.TestCase):
 
     def _pipeline(self, chroma):
-        from agents.agentic_pipeline import AgenticPipeline
+        from src.agents.agentic_pipeline import AgenticPipeline
         return AgenticPipeline(chroma_client=chroma, llm=None)
 
     # ── 6. local-only path ────────────────────────────────────────────────────
@@ -370,8 +370,8 @@ class TestAgenticPipeline(unittest.TestCase):
 
     # ── 9. idempotent IDs ─────────────────────────────────────────────────────
     def test_stored_ids_are_deterministic(self):
-        from agents.agentic_pipeline import AgenticPipeline
-        from agents.web_research_agent import WebResult, WebResearchBundle
+        from src.agents.agentic_pipeline import AgenticPipeline
+        from src.agents.web_research_agent import WebResult, WebResearchBundle
         ch   = _chroma_mock(["w"], [0.05])
         pl   = AgenticPipeline(chroma_client=ch, llm=None)
         plan = MagicMock(); plan.intent = "general"; plan.sub_tasks = []

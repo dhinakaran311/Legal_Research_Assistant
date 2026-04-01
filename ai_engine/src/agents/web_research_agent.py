@@ -339,6 +339,28 @@ class WebResearchAgent:
             return re.sub(r"\s{2,}", " ", div.get_text(" ", strip=True))[:1500]
         return ""
 
+    # ── Standalone async helpers (used by CrewAI tools) ──────────────────────
+
+    async def _search_kanoon_async_standalone(self, query: str):
+        """Standalone IndianKanoon search for CrewAI tool usage."""
+        import httpx
+        async with httpx.AsyncClient(
+            headers={**_BASE_HEADERS, "User-Agent": next(_ua_cycle)},
+            timeout=httpx.Timeout(self.timeout),
+            follow_redirects=True,
+        ) as client:
+            return await self._search_kanoon_async(client, query)
+
+    async def _search_indiacode_async_standalone(self, query: str):
+        """Standalone IndiaCode search for CrewAI tool usage."""
+        import httpx
+        async with httpx.AsyncClient(
+            headers={**_BASE_HEADERS, "User-Agent": next(_ua_cycle)},
+            timeout=httpx.Timeout(self.timeout),
+            follow_redirects=True,
+        ) as client:
+            return await self._search_indiacode_async(client, query)
+
     # ── Async HTTP helper with 1 retry on 429/503 ─────────────────────────────
 
     async def _get_async(self, client, url: str) -> Optional[str]:
