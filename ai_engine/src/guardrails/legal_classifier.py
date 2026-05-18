@@ -161,6 +161,11 @@ _LEGAL_KEYWORDS: List[Tuple[str, float]] = [
     (r"\bjudicial custody\b", 1.0),
     (r"\bcharge sheet\b", 0.9),
     (r"\bchargesheet\b", 0.9),
+    (r"\barrest\b", 0.75),               # "can police arrest", "arrest without warrant"
+    (r"\bwarrant\b", 0.8),               # "arrest without a warrant"
+    (r"\bpolice arrest\b", 0.9),
+    (r"\bpolice officer\b", 0.7),
+    (r"\bpolice station\b", 0.7),
     (r"\bcognizable offence\b", 1.0),
     (r"\bnon-cognizable\b", 1.0),
     (r"\bbailable\b", 0.9),
@@ -231,6 +236,21 @@ _LEGAL_KEYWORDS: List[Tuple[str, float]] = [
     (r"\badmission\b", 0.6),
     (r"\bcross examination\b", 0.9),
     (r"\bexamination in chief\b", 1.0),
+    (r"\bfile a case\b", 0.8),           # "how to file a case in court"
+    (r"\bfile a complaint\b", 0.8),
+    (r"\bcourt process\b", 0.8),
+    (r"\bcourt procedure\b", 0.8),
+    (r"\blegal case\b", 0.8),
+    (r"\bcourt case\b", 0.8),
+    (r"\blegal proceedings\b", 0.9),
+    (r"\bunder indian law\b", 0.9),
+    (r"\bindian law\b", 0.9),
+    (r"\bunder law\b", 0.7),
+    (r"\bin india.*law\b", 0.8),
+    (r"\bin court\b", 0.7),              # "file a case in court"
+    (r"\bgo to court\b", 0.8),
+    (r"\bcriminal law\b", 0.9),
+    (r"\bcivil law\b", 0.8),
 
     # ── Family / Personal Law ─────────────────────────────────────────────────
     (r"\bhma\b", 0.9),            # Hindu Marriage Act
@@ -260,6 +280,67 @@ _LEGAL_KEYWORDS: List[Tuple[str, float]] = [
     (r"\beviction\b", 0.8),
     (r"\bland acquisition\b", 0.9),
     (r"\bbenami\b", 1.0),
+
+    # ── Scenario / Situation phrases (user describes a case without naming law) ───
+    # These let users say "my landlord threw me out" and still get help.
+    (r"\bwhat can i do\b", 0.5),          # "someone hit me, what can I do?"
+    (r"\bwhat are my rights\b", 0.8),     # "what are my rights as a tenant?"
+    (r"\bwhat legal\b", 0.7),             # "what legal action can I take?"
+    (r"\blegal action\b", 0.8),
+    (r"\blegal remedy\b", 0.9),
+    (r"\blegal recourse\b", 0.9),
+    (r"\blegal options\b", 0.8),
+    (r"\bcan i sue\b", 0.9),
+    (r"\bfile a complaint\b", 0.8),
+    (r"\bfile an fir\b", 1.0),
+    (r"\bmy rights\b", 0.6),
+    (r"\bmy landlord\b", 0.6),            # landlord-tenant disputes
+    (r"\bmy employer\b", 0.6),            # employment disputes
+    (r"\bmy husband\b", 0.5),             # domestic / matrimonial
+    (r"\bmy wife\b", 0.5),
+    (r"\bmy boss\b", 0.5),
+    (r"\bharrassing me\b", 0.6),
+    (r"\bharassing me\b", 0.6),
+    (r"\bthreatening me\b", 0.6),
+    (r"\bassaulted me\b", 0.8),
+    (r"\battacked me\b", 0.7),
+    (r"\bstole my\b", 0.7),
+    (r"\bcheated me\b", 0.7),
+    (r"\bscammed me\b", 0.6),
+    (r"\bfrauded me\b", 0.7),
+    (r"\bfalsely accused\b", 0.8),
+    (r"\bwrongfully arrested\b", 0.9),
+    (r"\bunlawful detention\b", 0.9),
+    (r"\bhit and run\b", 0.8),
+    (r"\baccident case\b", 0.7),
+    (r"\bwhat happens if\b", 0.4),        # "what happens if someone hits my car"
+    (r"\bcan police\b", 0.7),             # "can police arrest without warrant?"
+    (r"\bam i liable\b", 0.8),
+    (r"\bpunishable\b", 0.8),
+    (r"\bbreach of contract\b", 0.9),
+    (r"\brefusal to pay\b", 0.7),
+    (r"\bnot paid my salary\b", 0.7),
+    (r"\bdomestic abuse\b", 0.9),
+    (r"\bdomestic violence\b", 0.9),
+    (r"\bsexual harassment\b", 0.9),
+    (r"\bworkplace harassment\b", 0.8),
+    (r"\bposh act\b", 0.9),
+    (r"\bunfair dismissal\b", 0.8),
+    (r"\bwrongful termination\b", 0.8),
+    (r"\bcyber crime\b", 0.8),
+    (r"\bonline fraud\b", 0.8),
+    (r"\bscam\b", 0.6),                   # "I was scammed online"
+    (r"\bget justice\b", 0.6),            # "how do I get justice?"
+    (r"\blanded property\b", 0.7),
+    (r"\bproperty dispute\b", 0.8),
+    (r"\binheritance dispute\b", 0.8),
+    (r"\bchild custody\b", 0.9),
+    (r"\bseparation from spouse\b", 0.8),
+    (r"\bwant justice\b", 0.5),
+    (r"\bseek justice\b", 0.6),
+    (r"\blegal help\b", 0.7),
+    (r"\bneed legal\b", 0.7),
+    (r"\blegal advice\b", 0.7),
 ]
 
 # Pre-compile patterns once at module load time
