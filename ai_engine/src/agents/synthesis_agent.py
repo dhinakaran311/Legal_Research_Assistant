@@ -17,50 +17,87 @@ from typing import Any, Dict, List, Optional
 
 from agents.planner_agent import Plan
 from agents.conflict_checker_agent import ConflictReport
+from llm.prompts import (
+    LEGAL_SYSTEM_PROMPT,
+    INSUFFICIENT_CONTEXT_RESPONSE,
+    NO_DOCUMENTS_RESPONSE,
+)
 
 logger = logging.getLogger(__name__)
 
 MAX_CTX_CHARS = 1000  # increased for better context
-RELEVANCE_FILTER_THRESHOLD = 0.65  # ignore documents below this score
+# FIX #4: Retrieval confidence threshold — below this score the LLM is not called.
+# Configurable via settings.RETRIEVAL_CONFIDENCE_THRESHOLD (default 0.65).
+RELEVANCE_FILTER_THRESHOLD = 0.40   # used for pre-LLM doc filtering
+_RETRIEVAL_CONFIDENCE_THRESHOLD = 0.65  # module default; overridden at runtime
+
+# FIX #3 — Strict grounding prompt templates
+# All templates share the same hard rules: answer ONLY from retrieved documents,
+# never from training memory, cite sections, refuse if insufficient.
+_GROUNDING_RULES = (
+    "ABSOLUTE RULES — NEVER VIOLATE:\n"
+    "1. Answer ONLY using the Legal Documents below. Do NOT use training knowledge.\n"
+    "2. If the documents do not answer the question, respond EXACTLY:\n"
+    '   \'I do not have enough verified legal information to answer this question.\'\n'
+    "3. NEVER fabricate acts, section numbers, case names, or legal facts.\n"
+    "4. Cite every claim as [Act s.Section] using names from the documents.\n"
+    "5. NEVER answer coding, programming, math, sports, or general knowledge.\n"
+)
 
 _PROMPTS: Dict[str, str] = {
     "factual": (
-        "You are an expert in Indian law.\n"
-        "Answer factually using ONLY the documents below.\n"
-        "Cite Act names and section numbers.\n\n"
-        "{context}\n\nQuestion: {question}\n\nAnswer:"
+        f"{_GROUNDING_RULES}\n"
+        "Legal Documents:\n{context}\n\n"
+        "Question: {question}\n\n"
+        "State the legal facts from the documents above. Cite Act and section. Under 300 words.\n\n"
+        "Answer:"
     ),
     "procedural": (
-        "You are an expert in Indian law.\n"
-        "Give a numbered step-by-step procedure using ONLY the documents below.\n\n"
-        "{context}\n\nQuestion: {question}\n\nStep-by-step:"
+        f"{_GROUNDING_RULES}\n"
+        "Legal Documents:\n{context}\n\n"
+        "Question: {question}\n\n"
+        "Give a numbered step-by-step procedure from the documents. Cite sections for each step. "
+        "If documents don't cover this procedure, say so explicitly. Under 400 words.\n\n"
+        "Step-by-step procedure:"
     ),
     "comparative": (
-        "You are an expert in Indian law.\n"
-        "Compare the legal concepts using ONLY the documents below.\n"
-        "Use a clear structure (e.g., table or headed sections).\n\n"
-        "{context}\n\nQuestion: {question}\n\nComparison:"
+        f"{_GROUNDING_RULES}\n"
+        "Legal Documents:\n{context}\n\n"
+        "Question: {question}\n\n"
+        "Compare the concepts using only the documents. List key differences with [Act s.N] citations. "
+        "Under 500 words.\n\n"
+        "Comparison:"
     ),
     "exploratory": (
-        "You are an expert in Indian law.\n"
-        "Give a comprehensive, well-organised overview using ONLY the documents.\n\n"
-        "{context}\n\nQuestion: {question}\n\nOverview:"
+        f"{_GROUNDING_RULES}\n"
+        "Legal Documents:\n{context}\n\n"
+        "Question: {question}\n\n"
+        "Give a comprehensive overview from the documents. Structure: Definition → Key Provisions → "
+        "Important Points. Cite sections. Under 600 words.\n\n"
+        "Overview:"
     ),
     "case_law": (
-        "You are an expert in Indian law.\n"
-        "Summarise the relevant judgments and case law from the documents below.\n\n"
-        "{context}\n\nQuestion: {question}\n\nCase Law Summary:"
+        f"{_GROUNDING_RULES}\n"
+        "Legal Documents:\n{context}\n\n"
+        "Question: {question}\n\n"
+        "Summarise relevant judgments from the documents. Mention case names and holdings ONLY if "
+        "stated in documents. Under 400 words.\n\n"
+        "Case Law Summary:"
     ),
     "recent": (
-        "You are an expert in Indian law.\n"
-        "Summarise the LATEST legal developments from the documents.\n"
-        "Highlight what is new or has changed.\n\n"
-        "{context}\n\nQuestion: {question}\n\nLatest Developments:"
+        f"{_GROUNDING_RULES}\n"
+        "Legal Documents:\n{context}\n\n"
+        "Question: {question}\n\n"
+        "Summarise the latest legal developments from the documents. Under 400 words.\n\n"
+        "Latest Developments:"
     ),
     "general": (
-        "You are an expert in Indian law.\n"
-        "Answer using ONLY the documents below. Cite sections where relevant.\n\n"
-        "{context}\n\nQuestion: {question}\n\nAnswer:"
+        f"{_GROUNDING_RULES}\n"
+        "Legal Documents:\n{context}\n\n"
+        "Question: {question}\n\n"
+        "Answer from the documents above. Cite Act names and sections. Under 400 words. "
+        "If documents are insufficient, say so explicitly.\n\n"
+        "Answer:"
     ),
 }
 
@@ -101,12 +138,40 @@ class SynthesisAgent:
 
         if not all_docs:
             return SynthesisOutput(
-                answer=(
-                    "No relevant legal provisions were found for your query. "
-                    "Please try rephrasing or adding more detail."
-                ),
+                answer=NO_DOCUMENTS_RESPONSE,
                 confidence=0.0,
                 conflict_report=conflict_report,
+            )
+
+        # FIX #4 — Retrieval Confidence Threshold Gate
+        # If the best retrieved document scores below threshold, do NOT call the
+        # LLM. Return a safe insufficient-context response instead.
+        try:
+            from config import settings
+            retrieval_threshold = getattr(
+                settings, "RETRIEVAL_CONFIDENCE_THRESHOLD", _RETRIEVAL_CONFIDENCE_THRESHOLD
+            )
+        except Exception:
+            retrieval_threshold = _RETRIEVAL_CONFIDENCE_THRESHOLD
+
+        top_score = sources[0].get("relevance_score", 0.0) if sources else 0.0
+        logger.info(
+            "SynthesisAgent | top_retrieval_score=%.3f threshold=%.2f",
+            top_score, retrieval_threshold,
+        )
+        if top_score < retrieval_threshold:
+            logger.warning(
+                "SynthesisAgent | INSUFFICIENT RETRIEVAL (%.3f < %.2f) — refusing LLM call",
+                top_score, retrieval_threshold,
+            )
+            return SynthesisOutput(
+                answer=INSUFFICIENT_CONTEXT_RESPONSE,
+                sources=local_srcs,
+                graph_references=local_graph,
+                web_sources=web_srcs,
+                conflict_report=conflict_report,
+                confidence=top_score,
+                used_llm=False,
             )
 
         if self.llm:
@@ -149,9 +214,15 @@ class SynthesisAgent:
         template = _PROMPTS.get(intent, _PROMPTS["general"])
         prompt   = template.format(question=query, context=ctx)
         try:
-            logger.info("SynthesisAgent | Calling LLM (max_tokens=700, temp=0.3)...")
+            # FIX #3 + #5: pass strict system prompt; use temperature=0.1, top_p=0.3
+            logger.info("SynthesisAgent | Calling LLM (max_tokens=700, temp=0.1, top_p=0.3)...")
             t_start = time.perf_counter()
-            answer = self.llm.generate(prompt, max_tokens=700, temperature=0.3)
+            answer = self.llm.generate(
+                prompt,
+                max_tokens=700,
+                temperature=0.1,   # FIX #5: deterministic, grounded
+                top_p=0.3,         # FIX #5: narrow nucleus
+            )
             t_elapsed = time.perf_counter() - t_start
             logger.info("SynthesisAgent | LLM response received in %.2fs", t_elapsed)
             

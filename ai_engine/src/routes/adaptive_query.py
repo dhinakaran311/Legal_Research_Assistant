@@ -45,6 +45,32 @@ async def adaptive_query(request: AdaptiveQueryRequest):
     """
     logger.info("POST /api/adaptive-query | question='%s'", request.question[:80])
     try:
+        # FIX #2: Route-level legal classifier guard (defense in depth)
+        from guardrails.legal_classifier import is_legal_query, legal_confidence, NON_LEGAL_REFUSAL
+        classifier_score = legal_confidence(request.question)
+        if not is_legal_query(request.question):
+            logger.warning(
+                "adaptive-query REJECTED | score=%.3f query='%s'",
+                classifier_score, request.question[:80],
+            )
+            return AdaptiveQueryResponse(
+                question           = request.question,
+                intent             = "non_legal",
+                intent_confidence  = 1.0,
+                answer             = NON_LEGAL_REFUSAL,
+                sources            = [],
+                graph_references   = [],
+                web_sources        = [],
+                documents_used     = 0,
+                retrieval_strategy = {"rejected": True, "reason": "non_legal_query"},
+                confidence         = 1.0,
+                processing_time_ms = 0.0,
+                metadata           = {
+                    "query_type":       "non_legal",
+                    "classifier_score": classifier_score,
+                },
+            )
+
         from pipeline_factory import get_pipeline
         pipeline = get_pipeline(use_llm=bool(request.use_llm))
         result   = await pipeline.run_async(request.question)

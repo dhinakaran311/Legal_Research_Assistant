@@ -53,6 +53,22 @@ class Settings(BaseSettings):
     # Application Settings
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+
+    # ── Guardrails / Grounding (FIX #1-#5) ───────────────────────────────────
+    # Minimum classifier confidence for a query to be treated as legal.
+    # Lower value → more permissive; higher → stricter.
+    LEGAL_CLASSIFIER_THRESHOLD: float = float(
+        os.getenv("LEGAL_CLASSIFIER_THRESHOLD", "0.25")
+    )
+    # Minimum retrieval similarity score for LLM generation to proceed.
+    # If the top document scores below this, return INSUFFICIENT_CONTEXT_RESPONSE.
+    RETRIEVAL_CONFIDENCE_THRESHOLD: float = float(
+        os.getenv("RETRIEVAL_CONFIDENCE_THRESHOLD", "0.65")
+    )
+    # LLM temperature — 0.1 keeps generation deterministic and grounded.
+    LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.1"))
+    # LLM top-p — 0.3 restricts nucleus sampling to suppress open generation.
+    LLM_TOP_P: float = float(os.getenv("LLM_TOP_P", "0.3"))
     
     class Config:
         env_file = ".env"

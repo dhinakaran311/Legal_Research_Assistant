@@ -1,203 +1,309 @@
 """
-Legal Prompt Templates for LLM Answer Generation
-Intent-specific prompts for different types of legal queries
+llm/prompts.py
+━━━━━━━━━━━━━━
+FIX #3 — Strict Grounding Prompts
+
+All prompts enforce:
+  • Answer ONLY from the retrieved legal documents provided.
+  • NEVER use internal training knowledge.
+  • NEVER answer coding, programming, math, sports, or general knowledge.
+  • If documents are insufficient → state explicitly, do NOT hallucinate.
+  • Always cite Act name and section number from the retrieved text.
 """
 
-# System prompt for legal assistant
-LEGAL_SYSTEM_PROMPT = """You are an expert legal AI assistant specializing in Indian law. Your role is to provide accurate, professional, and well-cited legal information based on provided documents.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# SINGLE-SOURCE-OF-TRUTH REFUSAL STRINGS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Guidelines:
-- CRITICALLY evaluate which documents are relevant to the question
-- IGNORE documents that don't answer the question (even if they're in the context)
-- Be accurate and cite specific sections/acts when mentioned in documents
-- Use professional legal language but remain clear and understandable
-- If the relevant documents don't contain sufficient information, acknowledge this explicitly
-- Never make up information - only use what's in the documents
-- Keep answers concise (under 400 words) unless comparison requires more
-- Focus on the question asked - don't add unnecessary information
+NON_LEGAL_REFUSAL = (
+    "I am an Indian Legal Research Assistant and can only answer questions "
+    "related to Indian law, legal procedures, acts, sections, and court "
+    "judgments. Your question does not appear to be law-related. "
+    "Please ask about topics such as IPC, CrPC, bail, FIR, constitutional "
+    "rights, legal procedures, or specific Indian acts."
+)
+
+INSUFFICIENT_CONTEXT_RESPONSE = (
+    "I do not have enough verified legal information to answer this question. "
+    "The retrieved documents do not contain sufficient context to provide "
+    "an accurate answer. Please try rephrasing your question or asking about "
+    "a specific act, section, or legal procedure."
+)
+
+NO_DOCUMENTS_RESPONSE = (
+    "No relevant legal documents were found for your query. "
+    "Please try rephrasing your question or being more specific about the "
+    "act, section, or legal topic you are researching."
+)
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# STRICT SYSTEM PROMPT  (used in every LLM call)
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+LEGAL_SYSTEM_PROMPT = """\
+You are a strictly grounded Indian Legal Research AI.
+
+ROLE
+────
+You are an expert assistant specialising exclusively in Indian law, legal
+procedures, acts, sections, and court judgments.
+
+ABSOLUTE RULES — NEVER VIOLATE
+───────────────────────────────
+1. You ONLY answer questions about Indian law.
+2. You MUST answer ONLY using the legal documents provided in the prompt.
+   You MUST NOT use your internal training knowledge under any circumstances.
+3. If the provided documents do not contain sufficient information:
+   Respond EXACTLY with:
+   "I do not have enough verified legal information to answer this question."
+   Do NOT guess, infer, or extrapolate beyond the documents.
+4. You MUST NEVER answer questions about:
+   - Programming, coding, algorithms, or software (Python, Java, React, DSA, etc.)
+   - Sports, entertainment, or pop culture
+   - Mathematics, science, or general knowledge
+   - Recipes, travel, health, or lifestyle topics
+   If asked, refuse with:
+   "I can only assist with Indian law related questions."
+5. You MUST NEVER fabricate acts, section numbers, case names, or legal facts.
+   If a section is not mentioned in the provided documents, do NOT invent it.
+6. Always cite the Act name and section number exactly as they appear in
+   the retrieved documents.
+7. If the documents are contradictory, state the conflict explicitly.
+8. Keep answers professional, concise, and legally precise.
+
+OUTPUT FORMAT
+─────────────
+• Start directly with the legal answer — no filler phrases like "Sure!" or "Great question!"
+• Cite sources as: [IPC s.302] or [CrPC s.41A] using exact names from documents.
+• If multiple documents apply, synthesise them coherently.
+• Do not repeat the question back to the user.
 """
 
-# Intent-specific prompt templates
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# INTENT-SPECIFIC PROMPT TEMPLATES
+# All templates enforce grounding via explicit HARD RULES section.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+_GROUNDING_RULES = """\
+HARD RULES:
+- Use ONLY the documents below. DO NOT use training knowledge.
+- If documents do not answer the question, respond:
+  "I do not have enough verified legal information to answer this question."
+- NEVER invent acts, section numbers, or case names.
+- Cite every fact with [Act s.Section] notation.\
+"""
+
 LEGAL_PROMPTS = {
-    "definitional": """You are a legal assistant. Provide a clear definition based on the legal documents.
+    "definitional": f"""\
+{_GROUNDING_RULES}
 
-Legal Documents:
-{context}
+Retrieved Legal Documents:
+{{context}}
 
-Question: {question}
+Question: {{question}}
 
-Instructions:
-- Provide a precise legal definition
-- Cite the specific section/act mentioned in the documents
-- Keep it concise (100-200 words)
-- Use the exact legal language from the documents
+Provide a precise legal definition based ONLY on the documents above.
+Cite the specific section and act. Keep it under 200 words.
 
 Answer:""",
 
-    "factual": """You are a legal assistant. Answer the factual legal question based on the documents provided.
+    "factual": f"""\
+{_GROUNDING_RULES}
 
-Legal Documents:
-{context}
+Retrieved Legal Documents:
+{{context}}
 
-Question: {question}
+Question: {{question}}
 
-Instructions:
-- State the specific legal facts (punishment, penalty, requirements, etc.)
-- Cite the section and act clearly
-- Be precise and factual
-- Keep answer under 300 words
+State the specific legal facts (punishment, penalty, requirements) ONLY from
+the documents above. Cite section and act clearly. Under 300 words.
 
 Answer:""",
 
-    "procedural": """You are a legal assistant. Explain the legal procedure step-by-step.
+    "procedural": f"""\
+{_GROUNDING_RULES}
 
-Legal Documents:
-{context}
+Retrieved Legal Documents:
+{{context}}
 
-Question: {question}
+Question: {{question}}
 
-Instructions:
-- First, identify which documents are RELEVANT to the question
-- IGNORE documents that don't answer the procedure being asked
-- Provide clear step-by-step procedure for the SPECIFIC action in the question
-- Number the steps if multiple
-- Cite relevant sections
-- Be practical and actionable
-- If no document answers the procedure, say "The provided documents don't contain the specific procedure. Here's what's typically required..." then give general guidance
-- Keep answer under 400 words
+Provide a numbered step-by-step procedure based ONLY on the documents above.
+Cite relevant sections for each step. Under 400 words.
+If the documents do not describe this procedure, state that explicitly.
 
 Step-by-step Answer:""",
 
-    "comparative": """You are a legal assistant. Compare the legal concepts clearly.
+    "comparative": f"""\
+{_GROUNDING_RULES}
 
-Legal Documents:
-{context}
+Retrieved Legal Documents:
+{{context}}
 
-Question: {question}
+Question: {{question}}
 
-Instructions:
-- Clearly identify both concepts being compared
-- Highlight key differences in a structured way
-- Cite relevant sections for each concept
-- Use "Difference 1:", "Difference 2:" format if helpful
-- Keep under 500 words
+Compare the legal concepts using ONLY the documents above.
+Use structured format: list key differences with citations [Act s.N].
+Under 500 words.
 
 Comparison:""",
 
-    "temporal": """You are a legal assistant. Explain the timing/deadline requirement.
+    "temporal": f"""\
+{_GROUNDING_RULES}
 
-Legal Documents:
-{context}
+Retrieved Legal Documents:
+{{context}}
 
-Question: {question}
+Question: {{question}}
 
-Instructions:
-- Clearly state the time limits or deadlines
-- Explain when the action should be taken
-- Cite the relevant provision
-- Mention any exceptions if stated in documents
-- Keep under 300 words
+State the exact time limits or deadlines from the documents above.
+Cite the relevant provision. Mention exceptions if stated. Under 300 words.
 
 Answer on Timing:""",
 
-    "exploratory": """You are a legal assistant. Provide a comprehensive overview of the legal topic.
+    "exploratory": f"""\
+{_GROUNDING_RULES}
 
-Legal Documents:
-{context}
+Retrieved Legal Documents:
+{{context}}
 
-Question: {question}
+Question: {{question}}
 
-Instructions:
-- Provide a comprehensive but organized overview
-- Break into sections if needed (Definition, Key Provisions, Important Points)
-- Cite multiple sections as relevant
-- Cover main points from the documents
-- Keep under 600 words
+Provide a comprehensive overview using ONLY the documents above.
+Structure: Definition → Key Provisions → Important Points.
+Cite multiple sections as relevant. Under 600 words.
 
 Comprehensive Answer:""",
 
-    "unknown": """You are a legal assistant. Answer the legal question based on the provided documents.
+    "case_law": f"""\
+{_GROUNDING_RULES}
 
-Legal Documents:
-{context}
+Retrieved Legal Documents:
+{{context}}
 
-Question: {question}
+Question: {{question}}
 
-Instructions:
-- Read the question carefully
-- Provide relevant information from the documents
-- Cite specific sections when mentioned
-- Be clear and professional
-- Keep under 400 words
+Summarise the relevant judgments and case law from the documents above.
+Mention case names, years, and key holdings ONLY if stated in the documents.
+Under 400 words.
 
-Answer:"""
+Case Law Summary:""",
+
+    "recent": f"""\
+{_GROUNDING_RULES}
+
+Retrieved Legal Documents:
+{{context}}
+
+Question: {{question}}
+
+Summarise the latest legal developments from the documents above.
+Highlight what is new or has changed. Under 400 words.
+
+Latest Developments:""",
+
+    "general": f"""\
+{_GROUNDING_RULES}
+
+Retrieved Legal Documents:
+{{context}}
+
+Question: {{question}}
+
+Answer clearly using ONLY the documents above.
+Cite Act names and section numbers. Under 400 words.
+If documents are insufficient, say so explicitly.
+
+Answer:""",
+
+    "unknown": f"""\
+{_GROUNDING_RULES}
+
+Retrieved Legal Documents:
+{{context}}
+
+Question: {{question}}
+
+Answer the legal question using ONLY the documents above.
+Cite specific sections. Be clear and professional. Under 400 words.
+
+Answer:""",
 }
 
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# HELPERS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 def build_prompt(intent: str, question: str, context: str) -> str:
     """
-    Build a complete prompt for LLM generation
-    
+    Build a complete grounded prompt for LLM generation.
+
     Args:
-        intent: Detected query intent (definitional, factual, etc.)
+        intent:   Detected query intent (definitional, factual, etc.)
         question: User's question
-        context: Formatted context from retrieved documents
-        
+        context:  Formatted context from retrieved documents
+
     Returns:
-        Complete prompt string
+        Complete prompt string with grounding rules baked in.
     """
-    # Get template for intent (fallback to unknown)
     template = LEGAL_PROMPTS.get(intent, LEGAL_PROMPTS["unknown"])
-    
-    # Format template
-    prompt = template.format(
-        question=question,
-        context=context
-    )
-    
-    return prompt
+    return template.format(question=question, context=context)
 
 
-def format_context_for_llm(documents: list, metadatas: list, max_chars_per_doc: int = 600) -> str:
+def format_context_for_llm(
+    documents: list,
+    metadatas: list,
+    max_chars_per_doc: int = 700,
+) -> str:
     """
-    Format retrieved documents into clean context for LLM
-    
+    Format retrieved documents into structured context for LLM.
+
     Args:
-        documents: List of document texts
-        metadatas: List of metadata dicts
+        documents:        List of document texts
+        metadatas:        List of metadata dicts
         max_chars_per_doc: Maximum characters per document
-        
+
     Returns:
-        Formatted context string
+        Formatted context string with source labels.
     """
+    if not documents:
+        return "No documents retrieved."
+
     context_parts = []
-    
     for i, (doc, meta) in enumerate(zip(documents, metadatas), 1):
-        # Build header with metadata
-        header = f"[Document {i}"
-        if 'act' in meta:
-            header += f" - {meta['act']}"
-        if 'section' in meta:
-            header += f", Section {meta['section']}"
-        header += "]"
-        
-        # Truncate document if too long
-        if len(doc) > max_chars_per_doc:
-            doc_text = doc[:max_chars_per_doc] + "..."
+        # Build citation header
+        act = meta.get("act", "")
+        sec = meta.get("section", "")
+        src = meta.get("source", "")
+
+        if act and sec:
+            header = f"[Document {i}: {act}, Section {sec}]"
+        elif act:
+            header = f"[Document {i}: {act}]"
+        elif src:
+            header = f"[Document {i}: {src}]"
         else:
-            doc_text = doc
-        
+            header = f"[Document {i}]"
+
+        # Truncate long documents
+        doc_text = doc[:max_chars_per_doc] + "..." if len(doc) > max_chars_per_doc else doc
         context_parts.append(f"{header}\n{doc_text}")
-    
+
     return "\n\n".join(context_parts)
 
 
-# Shorter prompt for testing/debugging
-SIMPLE_LEGAL_PROMPT = """Based on these legal documents, answer the question accurately and cite sources.
+# Legacy simple prompt kept for backward compatibility
+SIMPLE_LEGAL_PROMPT = """\
+Based ONLY on the legal documents below, answer the question accurately.
+DO NOT use any knowledge outside these documents.
+Cite specific sections and acts.
 
 Documents:
 {context}
 
 Question: {question}
 
-Answer (be concise and cite sections):"""
+Answer (cite sections):"""

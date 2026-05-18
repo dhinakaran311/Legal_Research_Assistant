@@ -150,6 +150,44 @@ class AgenticPipeline:
         logger.info("═" * 60)
         logger.info("Pipeline START | query='%s'", query[:80])
 
+        # ── FIX #2: Legal Domain Classifier Gate ──────────────────────────────
+        # This MUST run before ANY retrieval, embedding, or LLM call.
+        # Non-legal queries are rejected immediately with zero LLM/DB cost.
+        try:
+            from guardrails.legal_classifier import (
+                is_legal_query,
+                legal_confidence,
+                NON_LEGAL_REFUSAL,
+            )
+            confidence_score = legal_confidence(query)
+            if not is_legal_query(query):
+                logger.warning(
+                    "Pipeline REJECTED (non-legal) | score=%.3f query='%s'",
+                    confidence_score, query[:80],
+                )
+                elapsed_ms = float(round((time.perf_counter() - t0) * 1000, 1))
+                return PipelineResult(
+                    question              = query,
+                    intent                = "non_legal",
+                    intent_confidence     = 1.0,
+                    answer                = NON_LEGAL_REFUSAL,
+                    sources               = [],
+                    graph_references      = [],
+                    web_sources           = [],
+                    num_sources_retrieved = 0,
+                    retrieval_strategy    = {"rejected": True, "reason": "non_legal_query"},
+                    confidence            = 1.0,
+                    processing_time_ms    = elapsed_ms,
+                    metadata              = {
+                        "query_type":        "non_legal",
+                        "classifier_score":  confidence_score,
+                        "used_llm":          False,
+                        "conflict_detected": False,
+                    },
+                )
+        except ImportError as _e:
+            logger.warning("LegalClassifier import failed (%s) — proceeding without guard", _e)
+
         # ── Agent 1: Plan ─────────────────────────────────────────────────────
         plan = self.planner.plan(query)
         logger.info("Agent1 PlannerAgent  | intent=%s use_web=%s conflict=%s",

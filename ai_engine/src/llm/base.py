@@ -104,7 +104,8 @@ class BaseLLM(ABC):
         self,
         prompt:      str,
         max_tokens:  int   = 500,
-        temperature: float = 0.3,
+        temperature: float = 0.1,    # FIX #5: deterministic grounded generation
+        top_p:       float = 0.3,    # FIX #5: narrow nucleus — no open generation
     ) -> str:
         ...
 
@@ -134,12 +135,13 @@ class OllamaLLM(BaseLLM):
         self.timeout  = int(os.getenv("OLLAMA_TIMEOUT", "120"))
 
     def generate(self, prompt: str, max_tokens: int = 500,
-                 temperature: float = 0.3) -> str:
-        return self._generate_inner(prompt, max_tokens, temperature)
+                 temperature: float = 0.1,  # FIX #5
+                 top_p: float = 0.3) -> str:
+        return self._generate_inner(prompt, max_tokens, temperature, top_p)
 
     @_retryable
     def _generate_inner(self, prompt: str, max_tokens: int,
-                        temperature: float) -> str:
+                        temperature: float, top_p: float = 0.3) -> str:
         try:
             import requests
             resp = requests.post(
@@ -151,6 +153,7 @@ class OllamaLLM(BaseLLM):
                     "options": {
                         "num_predict": max_tokens,
                         "temperature": temperature,
+                        "top_p":       top_p,
                     },
                 },
                 timeout=self.timeout,
@@ -212,12 +215,13 @@ class GeminiLLM(BaseLLM):
         logger.info("GeminiLLM: client refreshed (key rotated)")
 
     def generate(self, prompt: str, max_tokens: int = 500,
-                 temperature: float = 0.3) -> str:
-        return self._generate_inner(prompt, max_tokens, temperature)
+                 temperature: float = 0.1,  # FIX #5
+                 top_p: float = 0.3) -> str:
+        return self._generate_inner(prompt, max_tokens, temperature, top_p)
 
     @_retryable
     def _generate_inner(self, prompt: str, max_tokens: int,
-                        temperature: float) -> str:
+                        temperature: float, top_p: float = 0.3) -> str:
         try:
             from google.genai import types  # new SDK types
             client   = self._get_client()
@@ -227,8 +231,8 @@ class GeminiLLM(BaseLLM):
                 config=types.GenerateContentConfig(
                     max_output_tokens=max_tokens,
                     temperature=temperature,
-                    top_p=0.9,
-                    top_k=40,
+                    top_p=top_p,      # FIX #5: narrow nucleus
+                    top_k=10,         # FIX #5: also restrict top-k
                 ),
             )
             if response and response.text:
@@ -274,12 +278,13 @@ class OpenAILLM(BaseLLM):
         logger.info("OpenAILLM: client refreshed")
 
     def generate(self, prompt: str, max_tokens: int = 500,
-                 temperature: float = 0.3) -> str:
-        return self._generate_inner(prompt, max_tokens, temperature)
+                 temperature: float = 0.1,  # FIX #5
+                 top_p: float = 0.3) -> str:
+        return self._generate_inner(prompt, max_tokens, temperature, top_p)
 
     @_retryable
     def _generate_inner(self, prompt: str, max_tokens: int,
-                        temperature: float) -> str:
+                        temperature: float, top_p: float = 0.3) -> str:
         try:
             client = self._get_client()
             resp   = client.chat.completions.create(
@@ -287,6 +292,7 @@ class OpenAILLM(BaseLLM):
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_tokens,
                 temperature=temperature,
+                top_p=top_p,  # FIX #5
             )
             return resp.choices[0].message.content.strip()
         except Exception as e:
