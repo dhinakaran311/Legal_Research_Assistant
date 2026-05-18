@@ -2,12 +2,12 @@
 Indian Legal Research Assistant — Agent Package
 """
 
-from agents.planner_agent          import PlannerAgent, Plan, SubTask, TaskType
-from agents.local_research_agent   import LocalResearchAgent, LocalResearchBundle
-from agents.web_research_agent     import WebResearchAgent, WebResearchBundle
-from agents.conflict_checker_agent import ConflictCheckerAgent, ConflictReport
-from agents.synthesis_agent        import SynthesisAgent, SynthesisOutput
-from agents.agentic_pipeline       import AgenticPipeline, PipelineResult
+from src.agents.planner_agent import PlannerAgent
+from src.agents.local_research_agent import LocalResearchAgent
+from src.agents.web_research_agent import WebResearchAgent
+from src.agents.conflict_checker_agent import ConflictCheckerAgent
+from src.agents.synthesis_agent import SynthesisAgent
+from src.agents.agentic_pipeline import AgenticPipeline
 
 __all__ = [
     # Agents

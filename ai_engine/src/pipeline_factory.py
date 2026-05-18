@@ -29,6 +29,17 @@ logger = logging.getLogger(__name__)
 _pipeline = None
 _pipeline_lock = threading.Lock()
 
+# ── New: ConversationGraph + LegalResearchCrew singletons ─────────────────────
+_conversation_graph = None
+_conversation_graph_lock = threading.Lock()
+
+_crew = None
+_crew_lock = threading.Lock()
+
+# ── Shared client references (reused across pipeline + graph) ─────────────────
+_chroma_client = None
+_neo4j_client = None
+
 
 def get_pipeline(use_llm: bool = False):
     """
@@ -52,6 +63,8 @@ def get_pipeline(use_llm: bool = False):
 
 def _create_pipeline(use_llm: bool):
     """Initialise ChromaDB, Neo4j, LLM, and return a fresh AgenticPipeline."""
+    global _chroma_client, _neo4j_client
+
     from agents.agentic_pipeline import AgenticPipeline
     from vectorstore.chroma_client import ChromaClient
     from graph.neo4j_client import get_neo4j_client
@@ -59,24 +72,25 @@ def _create_pipeline(use_llm: bool):
 
     logger.info("Initialising shared AgenticPipeline (ChromaDB + Neo4j)...")
 
-    # ── ChromaDB (primary vector store) ──────────────────────────────────────
-    chroma = ChromaClient(
-        persist_directory=settings.CHROMA_DB_PATH,
-        collection_name=settings.CHROMA_COLLECTION_NAME,
-        embedding_model=settings.MODEL_NAME,
-    )
-    chroma.connect()
-    logger.info("ChromaDB connected | path=%s", settings.CHROMA_DB_PATH)
+    # ── ChromaDB ──────────────────────────────────────────────────────────────
+    if _chroma_client is None:
+        _chroma_client = ChromaClient(
+            persist_directory=settings.CHROMA_DB_PATH,
+            collection_name=settings.CHROMA_COLLECTION_NAME,
+            embedding_model=settings.MODEL_NAME,
+        )
+        _chroma_client.connect()
+        logger.info("ChromaDB connected | path=%s", settings.CHROMA_DB_PATH)
 
-    # ── Neo4j (graph knowledge) ───────────────────────────────────────────────
-    try:
-        neo4j_client = get_neo4j_client()
-        logger.info("Neo4j connected")
-    except Exception as e:
-        logger.warning("Neo4j unavailable (%s) — graph features disabled", e)
-        neo4j_client = None
+    # ── Neo4j ─────────────────────────────────────────────────────────────────
+    if _neo4j_client is None:
+        try:
+            _neo4j_client = get_neo4j_client()
+            logger.info("Neo4j connected")
+        except Exception as e:
+            logger.warning("Neo4j unavailable (%s) — graph features disabled", e)
 
-    # ── LLM (optional) ───────────────────────────────────────────────────────
+    # ── LLM ───────────────────────────────────────────────────────────────────
     llm = None
     if use_llm:
         try:
@@ -87,12 +101,91 @@ def _create_pipeline(use_llm: bool):
             logger.warning("LLM init failed (%s) — rule-based fallback", e)
 
     pipeline = AgenticPipeline(
-        chroma_client=chroma,
-        neo4j_client=neo4j_client,
+        chroma_client=_chroma_client,
+        neo4j_client=_neo4j_client,
         llm=llm,
     )
     logger.info("AgenticPipeline ready")
     return pipeline
+
+
+def get_chroma_client():
+    """Return the shared ChromaDB client (initialised via get_pipeline)."""
+    if _chroma_client is None:
+        get_pipeline(use_llm=False)
+    return _chroma_client
+
+
+def get_neo4j_client():
+    """Return the shared Neo4j client (initialised via get_pipeline)."""
+    if _neo4j_client is None:
+        get_pipeline(use_llm=False)
+    return _neo4j_client
+
+
+def get_conversation_graph():
+    """Return the shared ConversationGraph singleton (thread-safe)."""
+    global _conversation_graph
+
+    if _conversation_graph is not None:
+        return _conversation_graph
+
+    with _conversation_graph_lock:
+        if _conversation_graph is None:
+            _conversation_graph = _create_conversation_graph()
+    return _conversation_graph
+
+
+def _create_conversation_graph():
+    from conversation.graph import build_conversation_graph
+    from conversation.memory import get_memory
+    from llm.base import get_llm
+
+    # Ensure shared clients are initialised
+    get_pipeline(use_llm=False)
+
+    try:
+        llm = get_llm()
+    except Exception as e:
+        logger.warning("LLM init failed for ConversationGraph: %s", e)
+        llm = None
+
+    graph = build_conversation_graph(
+        chroma_client=_chroma_client,
+        neo4j_client=_neo4j_client,
+        llm=llm,
+        memory=get_memory(),
+    )
+    logger.info("ConversationGraph ready")
+    return graph
+
+
+def get_crew():
+    """Return the shared LegalResearchCrew singleton (thread-safe)."""
+    global _crew
+
+    if _crew is not None:
+        return _crew
+
+    with _crew_lock:
+        if _crew is None:
+            _crew = _create_crew()
+    return _crew
+
+
+def _create_crew():
+    try:
+        from crew.legal_crew import LegalResearchCrew
+        get_pipeline(use_llm=False)
+        crew = LegalResearchCrew(
+            chroma_client=_chroma_client,
+            neo4j_client=_neo4j_client,
+        )
+        logger.info("LegalResearchCrew ready (available=%s)", crew.available)
+        return crew
+    except Exception as e:
+        logger.warning("LegalResearchCrew init failed: %s", e)
+        return None
 
 
 # ── Future: Pinecone sync hook ─────────────────────────────────────────────────

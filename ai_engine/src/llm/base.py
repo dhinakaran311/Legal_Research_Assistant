@@ -294,6 +294,61 @@ class OpenAILLM(BaseLLM):
             raise
 
 
+# ── Groq ─────────────────────────────────────────────────────────────────────
+
+class GroqLLM(BaseLLM):
+    """
+    Groq API — fast inference for llama-3.3-70b-versatile / llama-3.1-8b-instant.
+    """
+
+    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
+        self._api_key = api_key
+        self.model = model
+        self._client = None
+        self._lock = threading.Lock()
+
+    def _get_client(self):
+        with self._lock:
+            if self._client is None:
+                from groq import Groq
+                self._client = Groq(api_key=self._api_key)
+        return self._client
+
+    def try_refresh(self) -> None:
+        new_key = os.getenv("GROQ_API_KEY", self._api_key)
+        with self._lock:
+            self._api_key = new_key
+            self._client = None
+        logger.info("GroqLLM: client refreshed")
+
+    def generate(self, prompt: str, max_tokens: int = 1024,
+                 temperature: float = 0.3) -> str:
+        return self._generate_inner(prompt, max_tokens, temperature)
+
+    @_retryable
+    def _generate_inner(self, prompt: str, max_tokens: int,
+                        temperature: float) -> str:
+        try:
+            client = self._get_client()
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature,
+            )
+            return response.choices[0].message.content.strip()
+        except Exception as e:
+            logger.error("Groq error: %s", e)
+            raise
+
+    def is_available(self) -> bool:
+        try:
+            self._get_client()
+            return True
+        except Exception:
+            return False
+
+
 # ── No-op (rule-based only) ───────────────────────────────────────────────────
 
 class NoLLM(BaseLLM):
@@ -336,6 +391,15 @@ def _create_llm() -> BaseLLM:
     if provider == "none":
         logger.info("LLM provider: none (rule-based fallback)")
         return NoLLM()
+
+    if provider == "groq":
+        key = os.getenv("GROQ_API_KEY", "")
+        if not key:
+            logger.warning("GROQ_API_KEY missing — falling back to rule-based")
+            return NoLLM()
+        model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        logger.info("LLM provider: Groq (%s)", model)
+        return GroqLLM(api_key=key, model=model)
 
     if provider == "gemini":
         key = os.getenv("GEMINI_API_KEY", "")

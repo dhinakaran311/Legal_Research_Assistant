@@ -20,47 +20,83 @@ from agents.conflict_checker_agent import ConflictReport
 
 logger = logging.getLogger(__name__)
 
-MAX_CTX_CHARS = 1000  # increased for better context
-RELEVANCE_FILTER_THRESHOLD = 0.65  # ignore documents below this score
+MAX_CTX_CHARS = 1000
+RELEVANCE_FILTER_THRESHOLD = 0.40  # lowered — 0.65 was too aggressive, dropped relevant docs
 
 _PROMPTS: Dict[str, str] = {
     "factual": (
         "You are an expert in Indian law.\n"
-        "Answer factually using ONLY the documents below.\n"
-        "Cite Act names and section numbers.\n\n"
-        "{context}\n\nQuestion: {question}\n\nAnswer:"
+        "The user asked: {question}\n\n"
+        "INSTRUCTIONS:\n"
+        "- Read ALL documents below carefully\n"
+        "- ONLY use documents that are DIRECTLY relevant to the question asked\n"
+        "- IGNORE documents about unrelated topics (e.g. if asked about FIR, ignore bail sections)\n"
+        "- State the specific legal facts, cite Act name and section number\n"
+        "- If no document answers the question, say so clearly\n\n"
+        "Legal Documents:\n{context}\n\n"
+        "Answer (cite sections, under 300 words):"
     ),
     "procedural": (
         "You are an expert in Indian law.\n"
-        "Give a numbered step-by-step procedure using ONLY the documents below.\n\n"
-        "{context}\n\nQuestion: {question}\n\nStep-by-step:"
+        "The user asked: {question}\n\n"
+        "INSTRUCTIONS:\n"
+        "- Read ALL documents below carefully\n"
+        "- ONLY use documents that describe the SPECIFIC procedure asked about\n"
+        "- IGNORE documents about unrelated procedures or topics\n"
+        "- Give a clear numbered step-by-step procedure\n"
+        "- Cite the relevant section and act for each step\n"
+        "- If the documents don't cover this procedure, say so and give general guidance\n\n"
+        "Legal Documents:\n{context}\n\n"
+        "Step-by-step procedure:"
     ),
     "comparative": (
         "You are an expert in Indian law.\n"
-        "Compare the legal concepts using ONLY the documents below.\n"
-        "Use a clear structure (e.g., table or headed sections).\n\n"
-        "{context}\n\nQuestion: {question}\n\nComparison:"
+        "The user asked: {question}\n\n"
+        "INSTRUCTIONS:\n"
+        "- Compare the legal concepts clearly using the documents\n"
+        "- Use structured format: Key Differences, then each point\n"
+        "- Cite Act names and section numbers\n\n"
+        "Legal Documents:\n{context}\n\n"
+        "Comparison:"
     ),
     "exploratory": (
         "You are an expert in Indian law.\n"
-        "Give a comprehensive, well-organised overview using ONLY the documents.\n\n"
-        "{context}\n\nQuestion: {question}\n\nOverview:"
+        "The user asked: {question}\n\n"
+        "INSTRUCTIONS:\n"
+        "- Give a comprehensive overview using the documents\n"
+        "- Organise into: Definition, Key Provisions, Important Points\n"
+        "- Cite multiple sections as relevant\n\n"
+        "Legal Documents:\n{context}\n\n"
+        "Overview:"
     ),
     "case_law": (
         "You are an expert in Indian law.\n"
-        "Summarise the relevant judgments and case law from the documents below.\n\n"
-        "{context}\n\nQuestion: {question}\n\nCase Law Summary:"
+        "The user asked: {question}\n\n"
+        "INSTRUCTIONS:\n"
+        "- Summarise relevant judgments and case law from the documents\n"
+        "- Mention case names, years, and key holdings\n\n"
+        "Legal Documents:\n{context}\n\n"
+        "Case Law Summary:"
     ),
     "recent": (
         "You are an expert in Indian law.\n"
-        "Summarise the LATEST legal developments from the documents.\n"
-        "Highlight what is new or has changed.\n\n"
-        "{context}\n\nQuestion: {question}\n\nLatest Developments:"
+        "The user asked: {question}\n\n"
+        "INSTRUCTIONS:\n"
+        "- Summarise the latest legal developments from the documents\n"
+        "- Highlight what is new or has changed\n\n"
+        "Legal Documents:\n{context}\n\n"
+        "Latest Developments:"
     ),
     "general": (
         "You are an expert in Indian law.\n"
-        "Answer using ONLY the documents below. Cite sections where relevant.\n\n"
-        "{context}\n\nQuestion: {question}\n\nAnswer:"
+        "The user asked: {question}\n\n"
+        "INSTRUCTIONS:\n"
+        "- Read ALL documents and identify which ones answer the question\n"
+        "- IGNORE documents that are not relevant to the question\n"
+        "- Answer clearly, cite Act names and section numbers\n"
+        "- If documents don't answer the question, say so\n\n"
+        "Legal Documents:\n{context}\n\n"
+        "Answer:"
     ),
 }
 
