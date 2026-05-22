@@ -280,8 +280,35 @@ async def chat_stream(request: ChatRequest):
                 metadata={"intent": plan.intent, "streamed": True},
             )
 
-            # Send done signal with metadata
-            yield f"data: {json.dumps({'type': 'done', 'session_id': session_id, 'intent': plan.intent})}\n\n"
+            # Serialize sources for backend DB persistence
+            serialized_sources = []
+            for doc in docs:
+                meta = doc.get("metadata", {})
+                serialized_sources.append({
+                    "content": doc.get("content", "")[:400],
+                    "relevance_score": doc.get("relevance_score", 0.0),
+                    "metadata": {
+                        "act": meta.get("act", ""),
+                        "section": meta.get("section", ""),
+                        "title": meta.get("title", ""),
+                        "chapter": meta.get("chapter", ""),
+                    },
+                })
+
+            # Serialize graph references
+            serialized_graph = []
+            for ref in local_bundle.all_graph_facts[:5]:
+                serialized_graph.append({
+                    "case_name": ref.get("case_name"),
+                    "case_year": ref.get("case_year"),
+                    "act_name": ref.get("act_name"),
+                    "section": ref.get("section"),
+                    "section_title": ref.get("section_title"),
+                    "relationship": ref.get("relationship"),
+                })
+
+            # Send done signal with full metadata so backend proxy can persist everything
+            yield f"data: {json.dumps({'type': 'done', 'session_id': session_id, 'intent': plan.intent, 'confidence': local_bundle.quality_score, 'sources': serialized_sources, 'graph_references': serialized_graph})}\n\n"
 
         except Exception as e:
             logger.error("Stream error: %s", e, exc_info=True)

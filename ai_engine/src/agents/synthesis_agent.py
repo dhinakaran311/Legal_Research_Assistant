@@ -20,7 +20,8 @@ from agents.conflict_checker_agent import ConflictReport
 
 logger = logging.getLogger(__name__)
 
-MAX_CTX_CHARS = 1000
+MAX_CTX_CHARS = 2500  # Groq 70b can handle more context — was 1000, too aggressive
+
 RELEVANCE_FILTER_THRESHOLD = 0.40  # lowered — 0.65 was too aggressive, dropped relevant docs
 
 _PROMPTS: Dict[str, str] = {

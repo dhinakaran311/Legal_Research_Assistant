@@ -90,7 +90,7 @@ export interface ParsedMetadata {
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
-export function useChat(userId?: number) {
+export function useChat(userId?: number, token?: string | null) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -216,40 +216,77 @@ export function useChat(userId?: number) {
     abortRef.current = new AbortController();
 
     try {
-      const AI_ENGINE_URL = process.env.NEXT_PUBLIC_AI_ENGINE_URL || 'http://localhost:5000';
-      const response = await fetch(`${AI_ENGINE_URL}/api/chat/stream`, {
+      // ✅ Use the backend proxy — JWT auth only, no INTERNAL_API_KEY in browser
+      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000';
+      const response = await fetch(`${BACKEND_URL}/api/chat/stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Internal-API-Key': process.env.NEXT_PUBLIC_INTERNAL_API_KEY || '',
+          // JWT from auth context (never the internal API key)
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ session_id: currentSessionId, message: content, use_llm: true }),
+        body: JSON.stringify({
+          sessionId: currentSessionId,
+          message: content,
+          useLlm: true,
+        }),
         signal: abortRef.current.signal,
       });
+
+      if (!response.ok) {
+        throw new Error(`Backend error: ${response.status}`);
+      }
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let fullContent = '';
+      let buffer = '';
 
       if (reader) {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n').filter(l => l.startsWith('data: '));
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? ''; // keep incomplete line
 
           for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
             try {
               const data = JSON.parse(line.slice(6));
-              if (data.type === 'token') {
+
+              if (data.type === 'session_id' && data.session_id) {
+                // Update session if backend created a new one
+                if (!sessionId) setSessionId(data.session_id);
+
+              } else if (data.type === 'token') {
                 fullContent += data.content;
                 setMessages(prev => prev.map(m =>
                   m.id === streamingId ? { ...m, content: fullContent } : m
                 ));
+
               } else if (data.type === 'done') {
+                // Attach rich metadata (sources, graph refs) from the done event
+                const richMetadata = JSON.stringify({
+                  intent: data.intent,
+                  confidence: data.confidence,
+                  sources: data.sources || [],
+                  graph_references: data.graph_references || [],
+                  web_sources: data.web_sources || [],
+                  streamed: true,
+                });
                 setMessages(prev => prev.map(m =>
-                  m.id === streamingId ? { ...m, isStreaming: false } : m
+                  m.id === streamingId
+                    ? { ...m, isStreaming: false, metadata: richMetadata }
+                    : m
+                ));
+
+              } else if (data.type === 'error') {
+                setMessages(prev => prev.map(m =>
+                  m.id === streamingId
+                    ? { ...m, content: `Error: ${data.message}`, isStreaming: false }
+                    : m
                 ));
               }
             } catch { /* skip malformed chunks */ }
@@ -269,7 +306,7 @@ export function useChat(userId?: number) {
       setStreamingContent('');
       refetchSessions();
     }
-  }, [sessionId, isLoading, startNewSession, refetchSessions]);
+  }, [sessionId, isLoading, startNewSession, refetchSessions, token]);
 
   // ── Clear session ─────────────────────────────────────────────────────────
 
