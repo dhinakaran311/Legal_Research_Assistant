@@ -2,12 +2,12 @@
 Indian Legal Research Assistant — Agent Package
 """
 
-from src.agents.planner_agent import PlannerAgent
-from src.agents.local_research_agent import LocalResearchAgent
-from src.agents.web_research_agent import WebResearchAgent
-from src.agents.conflict_checker_agent import ConflictCheckerAgent
-from src.agents.synthesis_agent import SynthesisAgent
-from src.agents.agentic_pipeline import AgenticPipeline
+from agents.planner_agent import PlannerAgent
+from agents.local_research_agent import LocalResearchAgent
+from agents.web_research_agent import WebResearchAgent
+from agents.conflict_checker_agent import ConflictCheckerAgent
+from agents.synthesis_agent import SynthesisAgent
+from agents.agentic_pipeline import AgenticPipeline
 
 __all__ = [
     # Agents

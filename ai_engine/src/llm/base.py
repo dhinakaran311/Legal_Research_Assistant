@@ -229,11 +229,20 @@ class GeminiLLM(BaseLLM):
                     temperature=temperature,
                     top_p=0.9,
                     top_k=40,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
             )
             if response and response.text:
                 return response.text.strip()
-            # Safety block or empty response
+            # Safety block or empty response — try extracting from parts
+            parts_text = ""
+            if response and hasattr(response, "candidates"):
+                for cand in (response.candidates or []):
+                    for part in (getattr(cand.content, "parts", []) or []):
+                        if hasattr(part, "text") and part.text:
+                            parts_text += part.text
+            if parts_text.strip():
+                return parts_text.strip()
             fb = getattr(response, "prompt_feedback", None)
             raise RuntimeError(
                 f"Gemini empty response (feedback={fb})"
@@ -301,7 +310,7 @@ class GroqLLM(BaseLLM):
     Groq API — fast inference for llama-3.3-70b-versatile / llama-3.1-8b-instant.
     """
 
-    def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile"):
+    def __init__(self, api_key: str, model: str = "qwen/qwen3.6-27b"):
         self._api_key = api_key
         self.model = model
         self._client = None
@@ -336,10 +345,25 @@ class GroqLLM(BaseLLM):
                 max_tokens=max_tokens,
                 temperature=temperature,
             )
-            return response.choices[0].message.content.strip()
+            raw = response.choices[0].message.content.strip()
+            return self._strip_think_tags(raw)
         except Exception as e:
             logger.error("Groq error: %s", e)
             raise
+
+    @staticmethod
+    def _strip_think_tags(text: str) -> str:
+        """
+        Remove <think>...</think> chain-of-thought blocks emitted by
+        thinking models (e.g. qwen3.6-27b, DeepSeek-R1).
+        Returns only the final answer text that comes after the block.
+        """
+        import re
+        # Remove all <think>...</think> blocks (non-greedy, dotall)
+        cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        # Also handle unclosed <think> block (truncated mid-generation)
+        cleaned = re.sub(r"<think>.*$", "", cleaned, flags=re.DOTALL)
+        return cleaned.strip()
 
     def is_available(self) -> bool:
         try:
@@ -397,7 +421,7 @@ def _create_llm() -> BaseLLM:
         if not key:
             logger.warning("GROQ_API_KEY missing — falling back to rule-based")
             return NoLLM()
-        model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        model = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
         logger.info("LLM provider: Groq (%s)", model)
         return GroqLLM(api_key=key, model=model)
 

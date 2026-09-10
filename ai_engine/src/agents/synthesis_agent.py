@@ -186,9 +186,9 @@ class SynthesisAgent:
         template = _PROMPTS.get(intent, _PROMPTS["general"])
         prompt   = template.format(question=query, context=ctx)
         try:
-            logger.info("SynthesisAgent | Calling LLM (max_tokens=700, temp=0.3)...")
+            logger.info("SynthesisAgent | Calling LLM (max_tokens=1500, temp=0.3)...")
             t_start = time.perf_counter()
-            answer = self.llm.generate(prompt, max_tokens=700, temperature=0.3)
+            answer = self.llm.generate(prompt, max_tokens=1500, temperature=0.3)
             t_elapsed = time.perf_counter() - t_start
             logger.info("SynthesisAgent | LLM response received in %.2fs", t_elapsed)
             

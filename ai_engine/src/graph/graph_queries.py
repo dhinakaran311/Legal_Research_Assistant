@@ -60,30 +60,99 @@ def fetch_legal_graph_facts(
             graph_facts.extend(facts)
             logger.info(f"Found {len(facts)} case citations for Section {section_num}")
     
-    # Pattern 3: Specific legal concepts (extensible)
+    # Pattern 3: Specific legal concepts → section mappings (extensible)
     concept_queries = {
-        'bail': '438',  # Map to Section 438
-        'murder': '302',  # Map to Section 302
-        'cheating': '420',  # Map to Section 420
+        'bail':          ('438', 'CrPC'),
+        'anticipatory':  ('438', 'CrPC'),
+        'arrest':        ('41',  'CrPC'),
+        'fir':           ('154', 'CrPC'),
+        'murder':        ('302', 'IPC'),
+        'homicide':      ('300', 'IPC'),
+        'rape':          ('376', 'IPC'),
+        'cheating':      ('420', 'IPC'),
+        'defamation':    ('499', 'IPC'),
+        'intimidation':  ('506', 'IPC'),
+        'cheque':        ('138', 'NIA'),
+        'dishonour':     ('138', 'NIA'),
+        'negotiable':    ('138', 'NIA'),
+        'divorce':       ('13',  'HMA'),
+        'retrenchment':  ('25',  'IDA'),
+        'consumer':      ('35',  'CPA'),
+        'cyber':         ('66',  'IT'),
+        'hacking':       ('43',  'IT'),
+        'rti':           ('6',   'RTI'),
+        'information':   ('6',   'RTI'),
+        'tax':           ('139', 'ITA'),
+        'income tax':    ('139', 'ITA'),
+        'contract':      ('10',  'Contract'),
+        'agreement':     ('10',  'Contract'),
+        'transfer':      ('5',   'TPA'),
+        'property':      ('54',  'TPA'),
+        'mortgage':      ('58',  'TPA'),
+        'lease':         ('105', 'TPA'),
     }
-    
-    for concept, section in concept_queries.items():
-        if concept in question_lower and section not in [f.get('section', '') for f in graph_facts]:
-            facts = neo4j_client.find_case_citations(section)
-            if facts:
-                graph_facts.extend(facts)
-                logger.info(f"Found {len(facts)} facts for concept '{concept}' (Section {section})")
-    
+
+    already_seen_sections = {f.get('section', '') for f in graph_facts}
+
+    for concept, (section_num, act_key) in concept_queries.items():
+        if concept not in question_lower:
+            continue
+        if section_num in already_seen_sections:
+            continue
+
+        # First try: find landmark cases for this section
+        facts = neo4j_client.find_case_citations(section_num)
+        if facts:
+            graph_facts.extend(facts)
+            already_seen_sections.add(section_num)
+            logger.info(f"Found {len(facts)} case citations for concept '{concept}' (Section {section_num})")
+            continue
+
+        # Fallback: fetch the section node directly and return it as a graph fact
+        try:
+            section_info = neo4j_client.run_query("""
+                MATCH (s:Section {number: $num, act_short_name: $act})
+                RETURN s.number       AS section,
+                       s.title        AS section_title,
+                       s.common_name  AS common_name,
+                       s.act_name     AS act_name,
+                       s.act_short_name AS act_short_name
+            """, {"num": section_num, "act": act_key})
+
+            if section_info:
+                info = section_info[0]
+                graph_facts.append({
+                    "section":       info.get("section", section_num),
+                    "section_title": info.get("section_title", ""),
+                    "common_name":   info.get("common_name", ""),
+                    "act_name":      info.get("act_name", ""),
+                    "act_short_name":info.get("act_short_name", act_key),
+                    "source":        "section_node",
+                })
+                already_seen_sections.add(section_num)
+                logger.info(f"Fetched section node for concept '{concept}' (§{section_num} {act_key})")
+        except Exception as e:
+            logger.warning(f"Section fallback failed for '{concept}': {e}")
+
+    # Also enrich with related provisions for any sections we found
+    for section_num in list(already_seen_sections):
+        related = neo4j_client.find_related_provisions(section_num)
+        if related:
+            for r in related:
+                identifier = f"_{r.get('related_section', '')}"
+                if identifier not in {f"_{f.get('related_section', '')}" for f in graph_facts}:
+                    graph_facts.append(r)
+
     # Remove duplicates (by case_name + section)
     unique_facts = []
     seen = set()
-    
+
     for fact in graph_facts:
-        identifier = f"{fact.get('case_name', '')}_{fact.get('section', '')}"
+        identifier = f"{fact.get('case_name', '')}_{fact.get('section', '')}_{fact.get('related_section', '')}"
         if identifier not in seen:
             unique_facts.append(fact)
             seen.add(identifier)
-    
+
     logger.info(f"Returning {len(unique_facts)} unique graph facts")
     return unique_facts
 
