@@ -195,29 +195,30 @@ class ConversationGraph:
         Detect if query is a simple follow-up that can be answered from
         conversation context without re-running all agents.
         Examples: "can you explain more?", "what does that mean?", "give an example"
+
+        NOTE: Social pleasantries (yes/no/ok/thanks) are intentionally excluded —
+        they should go through the research pipeline to avoid stale-context answers.
         """
         if len(history) < 2:
             return False
 
         q = query.lower().strip()
 
-        # Short clarification questions
+        # Only genuine elaboration / clarification requests use the fast-path
         simple_patterns = [
             "can you explain", "what does that mean", "give me an example",
-            "elaborate", "tell me more", "what about", "how about",
-            "can you clarify", "what is the difference", "summarize",
-            "in simple terms", "in layman", "thank you", "thanks",
-            "ok", "okay", "got it", "understood", "yes", "no",
-            "what if", "is that correct", "are you sure",
+            "elaborate on", "tell me more about", "can you clarify",
+            "in simple terms", "in layman", "what if",
+            "is that correct", "are you sure", "summarize that",
         ]
         if any(p in q for p in simple_patterns):
             return True
 
-        # Very short queries (< 5 words) that reference previous context
+        # Very short queries (<= 4 words) that explicitly reference previous context
         words = q.split()
         if len(words) <= 4 and any(
             w in q for w in ["it", "this", "that", "these", "those", "them"]
-        ):
+        ) and len(words) >= 2:  # Must be at least a 2-word phrase, not just "yes"/"no"
             return True
 
         return False

@@ -26,39 +26,53 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-_pipeline = None
+_pipeline_no_llm  = None   # for use_llm=False (fast, rule-based synthesis)
+_pipeline_with_llm = None  # for use_llm=True  (LLM-powered synthesis)
 _pipeline_lock = threading.Lock()
 
-# ── New: ConversationGraph + LegalResearchCrew singletons ─────────────────────
+
+def get_pipeline(use_llm: bool = False):
+    """
+    Return the appropriate AgenticPipeline singleton (thread-safe).
+
+    Maintains TWO separate singletons:
+      • use_llm=False → fast rule-based pipeline (no LLM overhead)
+      • use_llm=True  → LLM-powered pipeline (Groq / Gemini)
+
+    Args:
+        use_llm: If True, return the LLM-backed pipeline.
+                 If False (default), return the rule-based pipeline.
+    """
+    global _pipeline_no_llm, _pipeline_with_llm
+
+    # Fast path — return already-built instance
+    if use_llm and _pipeline_with_llm is not None:
+        return _pipeline_with_llm
+    if not use_llm and _pipeline_no_llm is not None:
+        return _pipeline_no_llm
+
+    with _pipeline_lock:
+        if use_llm:
+            if _pipeline_with_llm is None:
+                logger.info("Creating LLM-powered AgenticPipeline (use_llm=True)...")
+                _pipeline_with_llm = _create_pipeline(use_llm=True)
+            return _pipeline_with_llm
+        else:
+            if _pipeline_no_llm is None:
+                logger.info("Creating rule-based AgenticPipeline (use_llm=False)...")
+                _pipeline_no_llm = _create_pipeline(use_llm=False)
+            return _pipeline_no_llm
+
+
+# ── Other singletons & shared client references ───────────────────────────────
 _conversation_graph = None
 _conversation_graph_lock = threading.Lock()
 
 _crew = None
 _crew_lock = threading.Lock()
 
-# ── Shared client references (reused across pipeline + graph) ─────────────────
 _chroma_client = None
-_neo4j_client = None
-
-
-def get_pipeline(use_llm: bool = False):
-    """
-    Return the shared AgenticPipeline singleton (thread-safe).
-
-    Args:
-        use_llm: If True, attach an LLM (using get_llm() factory).
-                 Ignored after first creation — the singleton is reused.
-    """
-    global _pipeline
-
-    # Fast path — no lock needed once created
-    if _pipeline is not None:
-        return _pipeline
-
-    with _pipeline_lock:
-        if _pipeline is None:
-            _pipeline = _create_pipeline(use_llm)
-    return _pipeline
+_neo4j_client  = None
 
 
 def _create_pipeline(use_llm: bool):

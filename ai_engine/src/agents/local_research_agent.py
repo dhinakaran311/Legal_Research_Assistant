@@ -21,8 +21,8 @@ from agents.planner_agent import Plan, SubTask, TaskType
 
 logger = logging.getLogger(__name__)
 
-# Below this average relevance → flag for web escalation
-QUALITY_THRESHOLD = 0.40
+# Below this max relevance → flag for web escalation
+QUALITY_THRESHOLD = 0.73
 # Minimum documents needed to be considered "found"
 MIN_DOCS_THRESHOLD = 2
 
@@ -70,6 +70,21 @@ class LocalResearchBundle:
     def is_sufficient(self) -> bool:
         """True when local results are good enough to skip web search."""
         docs = self.all_documents
+        
+        # If we have retrieved cached web documents with high enough relevance,
+        # we treat it as a sufficient cache hit to avoid redundant scraping.
+        cached_web_docs = [
+            d for d in docs 
+            if d.get("metadata", {}).get("source") == "web" 
+            and d.get("relevance_score", 0.0) >= 0.68
+        ]
+        if cached_web_docs:
+            logger.info(
+                "LocalResearchAgent | found %d cached web documents with relevance >= 0.68. Skipping web search.",
+                len(cached_web_docs)
+            )
+            return True
+
         return (
             len(docs) >= MIN_DOCS_THRESHOLD
             and self.quality_score >= QUALITY_THRESHOLD
@@ -154,7 +169,7 @@ class LocalResearchAgent:
         if not docs:
             return 0.0
         scores = [d.get("relevance_score", 0.0) for d in docs[:5]]
-        return round(sum(scores) / len(scores), 4)
+        return round(max(scores), 4)
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -178,9 +193,12 @@ def _parse_chroma(raw: Dict) -> List[Dict[str, Any]]:
     dists = raw.get("distances", [[]])[0]
     results = []
     for i, doc_id in enumerate(ids):
-        dist      = dists[i] if i < len(dists) else 1.0
+        # ChromaDB can return None for individual entries — guard against it
+        raw_dist = dists[i] if i < len(dists) else None
+        dist     = raw_dist if raw_dist is not None else 1.0
         relevance = max(0.0, round(1.0 - dist / 2.0, 4))
-        content   = docs[i]  if i < len(docs)  else ""
+        content   = docs[i] if i < len(docs) else None
+        content   = content if content is not None else ""   # None → empty str
         results.append({
             "id":              doc_id,
             "content":         content,

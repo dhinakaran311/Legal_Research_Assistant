@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 // Import REST routes
 import authRoutes from "./api/auth.js";
 import feedbackRoutes from "./api/feedback.js";
+import chatStreamRoutes from "./api/chatStreamRoute.js";
 
 // Load environment variables
 dotenv.config();
@@ -22,6 +23,10 @@ app.use("/api/auth", express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/feedback", express.json());
 app.use("/api/feedback", feedbackRoutes);
+
+// Secure chat streaming proxy (JWT auth, DB persistence)
+app.use("/api/chat", express.json());
+app.use("/api/chat", chatStreamRoutes);
 
 // Apollo Server setup
 const server = new ApolloServer({

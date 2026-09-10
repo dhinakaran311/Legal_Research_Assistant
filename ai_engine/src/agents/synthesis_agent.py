@@ -20,7 +20,8 @@ from agents.conflict_checker_agent import ConflictReport
 
 logger = logging.getLogger(__name__)
 
-MAX_CTX_CHARS = 1000
+MAX_CTX_CHARS = 2500  # Groq 70b can handle more context — was 1000, too aggressive
+
 RELEVANCE_FILTER_THRESHOLD = 0.40  # lowered — 0.65 was too aggressive, dropped relevant docs
 
 _PROMPTS: Dict[str, str] = {
@@ -185,9 +186,9 @@ class SynthesisAgent:
         template = _PROMPTS.get(intent, _PROMPTS["general"])
         prompt   = template.format(question=query, context=ctx)
         try:
-            logger.info("SynthesisAgent | Calling LLM (max_tokens=700, temp=0.3)...")
+            logger.info("SynthesisAgent | Calling LLM (max_tokens=1500, temp=0.3)...")
             t_start = time.perf_counter()
-            answer = self.llm.generate(prompt, max_tokens=700, temperature=0.3)
+            answer = self.llm.generate(prompt, max_tokens=1500, temperature=0.3)
             t_elapsed = time.perf_counter() - t_start
             logger.info("SynthesisAgent | LLM response received in %.2fs", t_elapsed)
             

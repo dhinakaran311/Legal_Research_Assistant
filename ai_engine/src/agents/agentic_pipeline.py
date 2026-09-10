@@ -58,11 +58,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from src.agents.planner_agent import PlannerAgent, Plan
-from src.agents.local_research_agent import LocalResearchAgent, LocalResearchBundle
-from src.agents.web_research_agent import WebResearchAgent, WebResearchBundle
-from src.agents.conflict_checker_agent import ConflictCheckerAgent, ConflictReport
-from src.agents.synthesis_agent import SynthesisAgent, SynthesisOutput
+from agents.planner_agent import PlannerAgent, Plan
+from agents.local_research_agent import LocalResearchAgent, LocalResearchBundle
+from agents.web_research_agent import WebResearchAgent, WebResearchBundle
+from agents.conflict_checker_agent import ConflictCheckerAgent, ConflictReport
+from agents.synthesis_agent import SynthesisAgent, SynthesisOutput
 
 logger = logging.getLogger(__name__)
 

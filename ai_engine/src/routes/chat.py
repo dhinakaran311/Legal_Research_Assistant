@@ -213,7 +213,85 @@ async def chat_stream(request: ChatRequest):
                 neo4j_client=get_neo4j_client(),
             )
             local_bundle = local_ra.research(plan)
-            docs = local_bundle.all_documents[:5]
+
+            # Routing decision
+            need_web = plan.use_web or not local_bundle.is_sufficient
+            web_docs = []
+            web_sources = []
+
+            if need_web:
+                plan.escalate_to_web = True
+                logger.info("Escalating to web research in streaming chat route...")
+                from agents.web_research_agent import WebResearchAgent
+                web_ra = WebResearchAgent()
+                web_bundle = await web_ra.research_async(resolved, intent=plan.intent)
+                web_docs = web_bundle.as_documents
+
+                # Ingest results into ChromaDB (self-learning loop)
+                chroma_client = get_chroma_client()
+                if web_bundle.results and chroma_client is not None:
+                    import hashlib
+                    from datetime import datetime, timezone
+                    ids, documents, metadatas = [], [], []
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    for result in web_bundle.results:
+                        content = result.content.strip()
+                        if not content:
+                            continue
+                        url_hash     = hashlib.md5(result.url.encode()).hexdigest()[:8]
+                        content_hash = hashlib.md5(content[:200].encode()).hexdigest()[:8]
+                        doc_id       = f"web_{url_hash}_{content_hash}"
+                        
+                        act_hints = plan.sub_tasks[0].act_hints if plan.sub_tasks else []
+                        metadata = {
+                            "source":      "web",
+                            "web_source":  result.web_source,
+                            "url":         result.url,
+                            "title":       result.title,
+                            "original_query": resolved[:200],
+                            "intent":         plan.intent,
+                            "act":            act_hints[0] if act_hints else "",
+                            "stored_at":   now_iso,
+                            "fetched_at":  now_iso,
+                        }
+                        ids.append(doc_id)
+                        documents.append(content)
+                        metadatas.append(metadata)
+                    if ids:
+                        try:
+                            chroma_client.upsert(
+                                ids=ids,
+                                documents=documents,
+                                metadatas=metadatas,
+                            )
+                            logger.info("ChromaDB STORE (stream) | %d web docs stored", len(ids))
+                        except Exception as e:
+                            logger.error("ChromaDB store failed in stream: %s", e)
+
+                # Format web_sources for client
+                for r in web_bundle.results:
+                    web_sources.append({
+                        "title": r.title,
+                        "url": r.url,
+                        "content": r.content[:300],
+                        "web_source": r.web_source,
+                    })
+
+            # Merge and rank local + web docs
+            seen = set()
+            merged_docs = []
+            for d in local_bundle.all_documents:
+                uid = d.get("id", "")
+                if uid and uid not in seen:
+                    seen.add(uid)
+                    merged_docs.append(d)
+            for d in web_docs:
+                uid = d.get("id", "")
+                if uid and uid not in seen:
+                    seen.add(uid)
+                    merged_docs.append(d)
+            merged_docs.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+            docs = merged_docs[:5]
 
             # Build context
             context_parts = []
@@ -221,9 +299,18 @@ async def chat_stream(request: ChatRequest):
                 meta = doc.get("metadata", {})
                 act = meta.get("act", "")
                 sec = meta.get("section", "")
-                label = f"[{act} s.{sec}]" if act and sec else f"[Doc {i}]"
+                if act and sec:
+                    label = f"[{act} s.{sec}]"
+                elif meta.get("source") == "web" or doc.get("source") == "web":
+                    title = meta.get("title", f"Web Source {i}")
+                    url = meta.get("url", "")
+                    label = f"[{title}]"
+                    if url:
+                        label += f" ({url})"
+                else:
+                    label = f"[Doc {i}]"
                 context_parts.append(f"{label}\n{doc.get('content','')[:600]}")
-            context = "\n\n".join(context_parts) or "No local documents found."
+            context = "\n\n".join(context_parts) or "No local or web documents found."
 
             # Build history messages for Groq
             history_msgs = memory.get_llm_messages(session_id, last_n=4)
@@ -251,10 +338,10 @@ async def chat_stream(request: ChatRequest):
 
             # Stream from Groq
             groq_key = os.getenv("GROQ_API_KEY", "")
-            groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+            groq_model = os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
             client = Groq(api_key=groq_key)
 
-            full_answer = ""
+            full_answer_raw = ""
             stream = client.chat.completions.create(
                 model=groq_model,
                 messages=messages,
@@ -266,13 +353,26 @@ async def chat_stream(request: ChatRequest):
             # Send session_id first
             yield f"data: {json.dumps({'type': 'session_id', 'session_id': session_id})}\n\n"
 
+            # Buffer full response (needed to strip <think>...</think> blocks
+            # emitted by thinking models like qwen3.6-27b before streaming to client)
             for chunk in stream:
                 delta = chunk.choices[0].delta.content or ""
                 if delta:
-                    full_answer += delta
-                    yield f"data: {json.dumps({'type': 'token', 'content': delta})}\n\n"
+                    full_answer_raw += delta
 
-            # Save assistant response to memory
+            # Strip chain-of-thought think blocks from thinking models
+            import re as _re
+            full_answer = _re.sub(r"<think>.*?</think>", "", full_answer_raw, flags=_re.DOTALL)
+            full_answer = _re.sub(r"<think>.*$", "", full_answer, flags=_re.DOTALL).strip()
+
+            # Stream the clean answer as word-by-word tokens
+            words = full_answer.split(" ")
+            for i, word in enumerate(words):
+                token = word if i == len(words) - 1 else word + " "
+                if token:
+                    yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+            # Save clean assistant response to memory
             memory.add_turn(
                 session_id=session_id,
                 role="assistant",
@@ -280,8 +380,40 @@ async def chat_stream(request: ChatRequest):
                 metadata={"intent": plan.intent, "streamed": True},
             )
 
-            # Send done signal with metadata
-            yield f"data: {json.dumps({'type': 'done', 'session_id': session_id, 'intent': plan.intent})}\n\n"
+            # Serialize sources for backend DB persistence
+            serialized_sources = []
+            for doc in docs:
+                if doc.get("source") == "web" or doc.get("metadata", {}).get("source") == "web":
+                    continue
+                meta = doc.get("metadata", {})
+                serialized_sources.append({
+                    "content": doc.get("content", "")[:400],
+                    "relevance_score": doc.get("relevance_score", 0.0),
+                    "metadata": {
+                        "act": meta.get("act", ""),
+                        "section": meta.get("section", ""),
+                        "title": meta.get("title", ""),
+                        "chapter": meta.get("chapter", ""),
+                    },
+                })
+
+            # Serialize graph references
+            serialized_graph = []
+            for ref in local_bundle.all_graph_facts[:5]:
+                serialized_graph.append({
+                    "case_name": ref.get("case_name"),
+                    "case_year": ref.get("case_year"),
+                    "act_name": ref.get("act_name"),
+                    "section": ref.get("section"),
+                    "section_title": ref.get("section_title"),
+                    "relationship": ref.get("relationship"),
+                })
+
+            top_score = max([d.get("relevance_score", 0.0) for d in docs]) if docs else 0.0
+            confidence = round(top_score, 2)
+
+            # Send done signal with full metadata so backend proxy can persist everything
+            yield f"data: {json.dumps({'type': 'done', 'session_id': session_id, 'intent': plan.intent, 'confidence': confidence, 'sources': serialized_sources, 'graph_references': serialized_graph, 'web_sources': web_sources})}\n\n"
 
         except Exception as e:
             logger.error("Stream error: %s", e, exc_info=True)

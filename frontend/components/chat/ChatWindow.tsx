@@ -7,17 +7,19 @@ import { Message } from '@/hooks/useChat';
 interface Props {
   messages: Message[];
   isLoading: boolean;
+  onSuggestionClick?: (text: string) => void;  // ✅ Bug 4 fix
 }
 
 const SUGGESTIONS = [
-  'What is anticipatory bail under CrPC?',
-  'What is the punishment for murder under IPC?',
+  'What is anticipatory bail under CrPC Section 438?',
+  'What is the punishment for murder under IPC Section 302?',
   'How do I file an FIR?',
   'Difference between IPC and CrPC',
   'What are my rights during arrest?',
+  'Explain breach of contract under the Contract Act',
 ];
 
-export default function ChatWindow({ messages, isLoading }: Props) {
+export default function ChatWindow({ messages, isLoading, onSuggestionClick }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,23 +29,30 @@ export default function ChatWindow({ messages, isLoading }: Props) {
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-blue-600/20 border border-blue-600/30
-          flex items-center justify-center text-3xl mb-4">
+        {/* Hero icon */}
+        <div className="w-20 h-20 rounded-2xl bg-blue-600/20 border border-blue-600/30
+          flex items-center justify-center text-4xl mb-5 shadow-lg shadow-blue-900/20">
           ⚖️
         </div>
         <h2 className="text-xl font-semibold text-gray-200 mb-2">
           Legal Research Assistant
         </h2>
-        <p className="text-gray-500 text-sm mb-8 max-w-sm">
-          Ask questions about Indian law. I remember our conversation context.
+        <p className="text-gray-500 text-sm mb-8 max-w-sm leading-relaxed">
+          Ask me anything about Indian law. I remember our conversation context
+          and cite acts &amp; section numbers.
         </p>
-        <div className="grid grid-cols-1 gap-2 w-full max-w-md">
+
+        {/* Suggestion chips — now clickable */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-2xl">
           {SUGGESTIONS.map((s, i) => (
             <button
               key={i}
+              id={`suggestion-${i}`}
+              onClick={() => onSuggestionClick?.(s)}
               className="text-left text-sm text-gray-400 bg-gray-800/50 border border-gray-700
-                rounded-xl px-4 py-2.5 hover:bg-gray-800 hover:text-gray-200 hover:border-gray-600
-                transition-all">
+                rounded-xl px-4 py-3 hover:bg-blue-900/30 hover:text-blue-300
+                hover:border-blue-600/50 transition-all duration-200 group">
+              <span className="mr-2 text-blue-500 group-hover:text-blue-400">→</span>
               {s}
             </button>
           ))}
